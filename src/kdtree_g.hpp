@@ -67,4 +67,20 @@ template
 void KDTreeKNNGPUSearch(PartitionInfoDevice<T, dims>* partition_info,
                     const point_i_t nr_query, 
                     const std::array<T, dims>* points_query, T * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches);
+#else
+
+void throw_error() { throw std::runtime_error("The library was compiled without GPU support"); }
+
+
+template <typename T, dim_t dims>
+PartitionInfoDevice<T, dims>* copyPartitionToGPU(const PartitionInfo<T, dims>& partition_info){    throw_error();   }
+
+template <typename T, dim_t dims>
+void freePartitionFromGPU(PartitionInfoDevice<T, dims>* partition_info) { throw_error(); }
+
+template
+<typename T, typename T_calc, dim_t dims>
+void KDTreeKNNGPUSearch(PartitionInfoDevice<T, dims>* partition_info,
+    const point_i_t nr_query,
+    const std::array<T, dims>* points_query, T* dist, point_i_t* idx, const point_i_knn_t nr_nns_searches){   throw_error();   }
 #endif

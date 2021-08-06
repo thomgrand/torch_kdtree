@@ -44,8 +44,16 @@ class CPKDTree:
         assert(result_dists.dtype == self.dtype)
         assert(result_idx.shape == [points_query.shape[0], nr_nns_searches])
         assert(result_idx.dtype == self.dtype_idx)
-        assert(result_dists.flags['C_CONTIGUOUS'])
-        assert(result_idx.flags['C_CONTIGUOUS'])
+
+        if not result_dists.flags['C_CONTIGUOUS']:
+            result_dists = self.lib.ascontiguousarray(result_dists)
+
+        if not result_idx.flags['C_CONTIGUOUS']:
+            result_idx = self.lib.ascontiguousarray(result_idx)
+
+        #Get pointer as int
+        #pointer, read_only_flag = a.__array_interface__['data'] #Numpy
+        #a.data.ptr #Cupy
 
         self.kdtree_func(points_query, self.part_nr, nr_nns_searches, result_dists, result_idx)
         return result_dists, self.shuffled_ind[result_idx]
