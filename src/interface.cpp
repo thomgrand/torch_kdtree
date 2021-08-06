@@ -156,7 +156,7 @@ struct KDTree
         delete partition_info;
 
         if (use_gpu)
-            delete partition_info_d;
+            freePartitionFromGPU(partition_info_d);
     }
 };
 
@@ -185,6 +185,12 @@ PYBIND11_MODULE(cp_knn, mod) {
         .def("get_shuffled_inds", &KDTree<float, 3, false>::get_shuffled_inds)
         .def("get_structured_points", &KDTree<float, 3, false>::get_structured_points)
         .def("query", &KDTree<float, 3, false>::query);
+
+    py::class_< KDTree<float, 3, true>, std::shared_ptr< KDTree<float, 3, true>>>(mod, "KDTreeGPU3DF")
+        .def(py::init<py::array_t<float>, int>(), py::arg("points_ref"), py::arg("levels"))
+        .def("get_shuffled_inds", &KDTree<float, 3, true>::get_shuffled_inds)
+        .def("get_structured_points", &KDTree<float, 3, true>::get_structured_points)
+        .def("query", &KDTree<float, 3, true>::query);
 
     mod.def("add", &add, R"pbdoc(
         Add two numbers
