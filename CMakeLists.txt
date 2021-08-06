@@ -6,6 +6,8 @@ add_subdirectory(pybind11)
 
 option(BUILD_TEST "Enable building the C++ test"
        ON)
+option(BUILD_GPU "Enable the GPU build"
+       ON)
 
 # The version number.
 set (CP_KNN_VERSION_MAJOR 0)
@@ -34,8 +36,11 @@ set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} --expt-relaxed-constexpr")
 #list(APPEND CUDA_NVCC_FLAGS "-std=c++11")
 #set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11" )
 
-set(COMMON_SOURCE_LIST
-    "src/kdtree.cpp"
+set(COMMON_CPU_SOURCE_LIST
+    "src/kdtree.cpp")
+
+set(COMMON_GPU_SOURCE_LIST
+    "${COMMON_CPU_SOURCE_LIST}"
     "src/nndistance_g.cu"
     "src/kdtree_g.cu")
 
@@ -45,16 +50,19 @@ set(COMMON_HEADERS_LIST
     "src/nndistance.hpp")
 
 set(EXEC_SOURCE_LIST
-	"${COMMON_SOURCE_LIST}"
+	"${COMMON_GPU_SOURCE_LIST}" #Test only available for the GPU
     "src/test_kdtree.cpp")
 
 set(EXEC_HEADERS_LIST
     "${COMMON_HEADERS_LIST}")
     
-set(INTERFACE_SOURCE_LIST
-    "${COMMON_SOURCE_LIST}"
+set(INTERFACE_CPU_SOURCE_LIST
+    "${COMMON_CPU_SOURCE_LIST}"
+    "src/interface.cpp")
+
+set(INTERFACE_GPU_SOURCE_LIST
+    "${COMMON_GPU_SOURCE_LIST}"
     "src/nndistance_g.cu"
-    "src/nndistance.cpp"
     "src/interface.cpp")
 
 
@@ -85,42 +93,72 @@ ExternalProject_Add( eigen
 #Old, see below
 #INCLUDE_DIRECTORIES("${EIGEN_INSTALL_DIR}")
 
+#Link libraries
+set(COMMON_LINKS "")
+
+#OpenMP
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+  IF(OPENMP_FOUND)
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  ENDIF()
+    #set(COMMON_LINKS "${COMMON_LINKS}" OpenMP::OpenMP_CXX)
+    #target_link_libraries(cp_knn PUBLIC OpenMP::OpenMP_CXX)
+    #target_link_libraries(test_kdtree PUBLIC OpenMP::OpenMP_CXX)
+endif()
+
+
 ##############################################################
 ## Create targets and add definitions, dependencies...
 
-if (BUILD_TEST)
+if (BUILD_TEST AND BUILD_GPU)
     # add the executable
     add_executable(test_kdtree ${EXEC_SOURCE_LIST}) # ${EXEC_HEADERS_LIST})
+    target_link_libraries(test_kdtree cudart ${COMMON_LINKS})
+    target_include_directories(test_kdtree PRIVATE ${EIGEN_INSTALL_DIR})
+    set_property(TARGET test_kdtree PROPERTY CUDA_ARCHITECTURES 50-real 50-virtual)
+    add_dependencies(test_kdtree eigen)
+endif()
+
+if (BUILD_GPU)
+    set(INTERFACE_SOURCE_LIST ${INTERFACE_GPU_SOURCE_LIST})
+else()
+    set(INTERFACE_SOURCE_LIST ${INTERFACE_CPU_SOURCE_LIST})
 endif()
 
 #PYTHON_ADD_MODULE(oum_export_release tsitsiklis.cpp OrderedUpwindMethod.cpp utility.cpp OUMNPInterface.cpp)
 
 #set_target_properties(test_kdtree PROPERTIES
 #                            CUDA_SEPARABLE_COMPILATION ON)
-pybind11_add_module(cp_knn src/interface.cpp)
-add_library(tf_nndistance SHARED ${INTERFACE_SOURCE_LIST})
+pybind11_add_module(cp_knn ${INTERFACE_SOURCE_LIST})
 
-target_compile_definitions(tf_nndistance PRIVATE _GLIBCXX_USE_CXX11_ABI=1)
+if (BUILD_GPU)
+    target_link_libraries(cp_knn cudart ${COMMON_LINKS})
+endif()
 
-target_link_libraries(test_kdtree cudart)
-#target_link_libraries(tf_nndistance tensorflow_framework cudart)
-target_link_libraries(tf_nndistance)
 
-target_include_directories(test_kdtree PRIVATE ${EIGEN_INSTALL_DIR})
-target_include_directories(tf_nndistance PRIVATE ${EIGEN_INSTALL_DIR} ${TF_INCLUDE_DIR})
+
+target_include_directories(cp_knn PRIVATE ${EIGEN_INSTALL_DIR})
+
+#set_target_properties(test_kdtree PROPERTIES CUDA_ARCHITECTURES "50")
+#set_target_properties(cp_knn PROPERTIES CUDA_ARCHITECTURES "50")
+#if(BUILD_GPU)
+#    set_property(TARGET cp_knn PROPERTY CUDA_ARCHITECTURES 50-real 50-virtual)
+#endif()
 
 #-fPIC
-#set_property(tf_nndistance PROPERTY POSITION_INDEPENDENT_CODE ON)
+#set_property(cp_knn PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-target_compile_definitions(tf_nndistance PUBLIC "$<$<CONFIG:RELEASE>:NDEBUG>")
+target_compile_definitions(cp_knn PUBLIC "$<$<CONFIG:RELEASE>:NDEBUG>")
 set_target_properties(cp_knn PROPERTIES COMPILE_DEFINITIONS VERSION_INFO="${CP_KNN_VERSION_MAJOR}.${CP_KNN_VERSION_MINOR}")
 #target_compile_definitions(test_kdtree PUBLIC "$<$<CONFIG:RELEASE>:NDEBUG>")
 
 ##################################
 # Post-build commands
-add_custom_command(TARGET tf_nndistance 
+add_custom_command(TARGET cp_knn 
                    POST_BUILD
-                   COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:tf_nndistance> "${PROJECT_SOURCE_DIR}/..")
+                   COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:cp_knn> "${PROJECT_SOURCE_DIR}/..")
 
 ##################################
 # Tests
@@ -132,10 +170,9 @@ add_test (NAME python-tests
 )
 
 #Dependencies
-add_dependencies(tf_nndistance eigen)
-add_dependencies(test_kdtree eigen)
+add_dependencies(cp_knn eigen)
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND}
-                  DEPENDS tf_nndistance)
+                  DEPENDS cp_knn)
 
 ##################################
 # Debug: Print all variables

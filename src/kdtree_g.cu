@@ -16,9 +16,8 @@ __device__ void compQuadrDistLeafPartitionBlockwise(const Vec<T, dims>& point, c
                                     PingPongBuffer<T>& best_dist_pp, PingPongBuffer<point_i_t>& best_knn_pp,
 									const point_i_knn_t nr_nns_searches, T& worst_dist)
 {
-	//printf("Before dereferencing\n");
 	//2D indices
-	const int block_size = blockDim.x * blockDim.y; // * blockDim.z;
+	const int block_size = blockDim.x * blockDim.y;
 	const int tidx = threadIdx.y * blockDim.x + threadIdx.x;
 
     /*printf("compQuadrDistLeafPartition: %x, ", partition_leaf.data);
@@ -161,6 +160,23 @@ void freePartitionFromGPU(PartitionInfoDevice<T, dims>* partition_info)
 	#endif
 
 	free(local);
+}
+
+/**
+ * @brief Frees the allocated GPU memory of a KD-Tree result (currently only used by test_kdtree.cpp)
+ *
+ * @tparam T Array Type
+ * @param arr Array to free
+ */
+template <typename T>
+void freeGPUArray(T* arr)
+{
+	freeGPUMemory(arr);
+
+#ifndef NDEBUG
+	gpuErrchk(cudaPeekAtLastError());
+	gpuErrchk(cudaDeviceSynchronize());
+#endif
 }
 
 /**
@@ -497,4 +513,7 @@ template void freePartitionFromGPU(PartitionInfoDevice<double, 1>* partition_inf
 template void freePartitionFromGPU(PartitionInfoDevice<double, 2>* partition_info);
 template void freePartitionFromGPU(PartitionInfoDevice<double, 3>* partition_info);
 
+template void freeGPUArray(float* arr);
+template void freeGPUArray(double* arr);
+template void freeGPUArray(point_i_knn_t* arr);
 

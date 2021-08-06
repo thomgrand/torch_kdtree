@@ -9,23 +9,6 @@ void compQuadrDistLeafPartition(const std::array<T, dims>& point, const Partitio
                                     std::vector<T>& best_dists, std::vector<point_i_knn_t>& best_idx,
 									const point_i_knn_t nr_nns_searches)
 {
-	/*const std::array<T, dims>* partition_data = partition_leaf.data;
-    const point_i_t partition_size = partition_leaf.nr_points;
-	const point_i_t partition_offset = partition_leaf.offset;
-    for(point_i_t ref_i = 0; ref_i < partition_size; ref_i++)
-    {
-        const T_calc dist = compQuadrDist<T, T_calc, dims>(point, partition_data[ref_i]);
-        const auto insertion_idx = knnInsertionDynamic<T_calc>(dist, best_dists.data(), nr_nns_searches);
-        if(insertion_idx < nr_nns_searches)
-        {
-            //Shift elements to the right
-            //std::cout << k << ", " << d << "insert into " << insertion_idx << std::endl;
-            std::move_backward(best_dists.begin() + insertion_idx, best_dists.end() - 1, best_dists.end());
-            std::move_backward(best_idx.begin() + insertion_idx, best_idx.end() - 1, best_idx.end());
-            best_dists[insertion_idx] = dist;
-            best_idx[insertion_idx] = ref_i + partition_offset;
-        }
-    }  */
     compQuadrDistLeafPartition<T, T_calc, dims>(point, partition_leaf, best_dists.data(), best_idx.data(), nr_nns_searches);
 }
 

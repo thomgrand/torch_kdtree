@@ -32,8 +32,8 @@
 #endif
 
 typedef uint8_t dim_t;
-typedef uint32_t point_i_t;
-typedef uint32_t point_i_knn_t;
+typedef int32_t point_i_t; //some values are signed for openmp support
+typedef int32_t point_i_knn_t;
 typedef point_i_t tree_ind_t;
 typedef int level_t;
 typedef uint8_t slot_t;
@@ -84,7 +84,7 @@ inline T compTotalNrNodes(const T levels)
  * 
  * @tparam T Type of the levels
  * @param levels Number of levels of the tree
- * @return CUDA_HOSTDEV T Number of total leaves of the tree
+ * @return T Number of total leaves of the tree
  */
 template <typename T>
 CUDA_HOSTDEV inline T compTotalNrLeaves(const T levels)

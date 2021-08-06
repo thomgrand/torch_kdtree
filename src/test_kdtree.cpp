@@ -20,7 +20,7 @@ const int nr_points = 10000;
 const int dims = 3;
 const int levels = 11;
 
-const int nr_query_points = 20000;
+const int nr_query_points = 2000;
 const point_i_knn_t knn = 20;
 
 typedef double test_T;
@@ -31,6 +31,9 @@ std::tuple<T*, point_i_t*, T*> copyData(const std::vector<T>& result_dists, cons
 
 template <typename T>
 std::tuple<T*, point_i_t*> copyDataBackToHost(const T* result_dists, const point_i_t* result_idx, const size_t nr_query, const uint32_t nr_nns_searches);
+
+template <typename T>
+void freeGPUArray(T* arr);
 
 int main()
 {
@@ -85,7 +88,10 @@ int main()
     if(!std::equal(result_dists_gpu, result_dists_gpu + nr_query_points*knn, result_dists.begin(), [](const double lhs, const double rhs){return std::abs<double>(lhs - rhs) < 1e-7;}))
         throw std::runtime_error("Error when comparing KD-Tree solution against the reference");
 
+    //Clean up
     freePartitionFromGPU(partition_info_d);
+    freeGPUArray(result_dists_d);
+    freeGPUArray(result_idx_d);
     std::cout << "Success" << std::endl;
     return 0;
 }
