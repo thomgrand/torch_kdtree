@@ -89,28 +89,31 @@ py::tuple buildKDTreeCPUF(const py::array_t<float, py::array::c_style | py::arra
     float* structured_flat;
     point_i_t* shuffled_inds;
 
-    if (dims == 1)
     {
-        part_nr = partition_share.addPartition(new PartitionInfo<float, 1>(std::move(createKDTree<float, 1>(points_raw, nr_points, levels))), dims, levels);
+        py::gil_scoped_release release;
+        if (dims == 1)
+        {
+            part_nr = partition_share.addPartition(new PartitionInfo<float, 1>(std::move(createKDTree<float, 1>(points_raw, nr_points, levels))), dims, levels);
 
-        //https://stackoverflow.com/questions/3505713/c-template-compilation-error-expected-primary-expression-before-token
-        structured_flat = reinterpret_cast<float*>(partition_share.template getPartition<PartitionInfo<float, 1>*>(part_nr)->structured_points);
-        shuffled_inds = partition_share.template getPartition<PartitionInfo<float, 1>*>(part_nr)->shuffled_inds;
+            //https://stackoverflow.com/questions/3505713/c-template-compilation-error-expected-primary-expression-before-token
+            structured_flat = reinterpret_cast<float*>(partition_share.template getPartition<PartitionInfo<float, 1>*>(part_nr)->structured_points);
+            shuffled_inds = partition_share.template getPartition<PartitionInfo<float, 1>*>(part_nr)->shuffled_inds;
+        }
+        else if (dims == 2)
+        {
+            part_nr = partition_share.addPartition(new PartitionInfo<float, 2>(std::move(createKDTree<float, 2>(points_raw, nr_points, levels))), dims, levels);
+            structured_flat = reinterpret_cast<float*>(partition_share.template getPartition<PartitionInfo<float, 2>*>(part_nr)->structured_points);
+            shuffled_inds = partition_share.template getPartition<PartitionInfo<float, 2>*>(part_nr)->shuffled_inds;
+        }
+        else if (dims == 3)
+        {
+            part_nr = partition_share.addPartition(new PartitionInfo<float, 3>(std::move(createKDTree<float, 3>(points_raw, nr_points, levels))), dims, levels);
+            structured_flat = reinterpret_cast<float*>(partition_share.template getPartition<PartitionInfo<float, 3>*>(part_nr)->structured_points);
+            shuffled_inds = partition_share.template getPartition<PartitionInfo<float, 3>*>(part_nr)->shuffled_inds;
+        }
+        else
+            throw std::runtime_error("Unsupported number of dimensions" + std::to_string(dims)); //TODO: Dynamic implementation
     }
-    else if (dims == 2)
-    {
-        part_nr = partition_share.addPartition(new PartitionInfo<float, 2>(std::move(createKDTree<float, 2>(points_raw, nr_points, levels))), dims, levels);
-        structured_flat = reinterpret_cast<float*>(partition_share.template getPartition<PartitionInfo<float, 2>*>(part_nr)->structured_points);
-        shuffled_inds = partition_share.template getPartition<PartitionInfo<float, 2>*>(part_nr)->shuffled_inds;
-    }
-    else if (dims == 3)
-    {
-        part_nr = partition_share.addPartition(new PartitionInfo<float, 3>(std::move(createKDTree<float, 3>(points_raw, nr_points, levels))), dims, levels);
-        structured_flat = reinterpret_cast<float*>(partition_share.template getPartition<PartitionInfo<float, 3>*>(part_nr)->structured_points);
-        shuffled_inds = partition_share.template getPartition<PartitionInfo<float, 3>*>(part_nr)->shuffled_inds;
-    }
-    else
-        throw std::runtime_error("Unsupported number of dimensions" + std::to_string(dims)); //TODO: Dynamic implementation
 
     //Result arrays
     /* No pointer is passed, so NumPy will allocate the buffer */
@@ -147,26 +150,29 @@ py::tuple searchKDTreeCPUF(const py::array_t<float, py::array::c_style | py::arr
     auto dist = dist_arr.mutable_data();
     auto knn_idx = knn_idx_arr.mutable_data();
 
-    if (dims == 1)
     {
-        KDTreeKNNSearch<float, float, 1>(*partition_share.template getPartition<PartitionInfo<float, 1>*>(part_nr),
-            nr_query_points, reinterpret_cast<const std::array<float, 1>*>(points_raw),
-            dist, knn_idx, nr_nns_searches);
+        py::gil_scoped_release release;
+        if (dims == 1)
+        {
+            KDTreeKNNSearch<float, float, 1>(*partition_share.template getPartition<PartitionInfo<float, 1>*>(part_nr),
+                nr_query_points, reinterpret_cast<const std::array<float, 1>*>(points_raw),
+                dist, knn_idx, nr_nns_searches);
+        }
+        else if (dims == 2)
+        {
+            KDTreeKNNSearch<float, float, 2>(*partition_share.template getPartition<PartitionInfo<float, 2>*>(part_nr),
+                nr_query_points, reinterpret_cast<const std::array<float, 2>*>(points_raw),
+                dist, knn_idx, nr_nns_searches);
+        }
+        else if (dims == 3)
+        {
+            KDTreeKNNSearch<float, float, 3>(*partition_share.template getPartition<PartitionInfo<float, 3>*>(part_nr),
+                nr_query_points, reinterpret_cast<const std::array<float, 3>*>(points_raw),
+                dist, knn_idx, nr_nns_searches);
+        }
+        else
+            throw std::runtime_error("Unsupported number of dimensions"); //TODO: Dynamic implementation
     }
-    else if (dims == 2)
-    {
-        KDTreeKNNSearch<float, float, 2>(*partition_share.template getPartition<PartitionInfo<float, 2>*>(part_nr),
-            nr_query_points, reinterpret_cast<const std::array<float, 2>*>(points_raw),
-            dist, knn_idx, nr_nns_searches);
-    }
-    else if (dims == 3)
-    {
-        KDTreeKNNSearch<float, float, 3>(*partition_share.template getPartition<PartitionInfo<float, 3>*>(part_nr),
-            nr_query_points, reinterpret_cast<const std::array<float, 3>*>(points_raw),
-            dist, knn_idx, nr_nns_searches);
-    }
-    else
-        throw std::runtime_error("Unsupported number of dimensions"); //TODO: Dynamic implementation
 
     return py::make_tuple(dist_arr, knn_idx_arr);
 }
@@ -225,6 +231,9 @@ PYBIND11_MODULE(cp_knn, mod) {
     //mod.def("buildKDTreeCPU", buildKDTreeCPU<double>);
     mod.def("buildKDTreeCPUF", buildKDTreeCPUF,
             py::arg("points_ref"), py::arg("levels"));
+
+    //mod.def("buildKDTreeGPUF", buildKDTreeGPUF,
+    //    py::arg("points_ref"), py::arg("levels"));
 
     mod.def("searchKDTreeCPUFA", searchKDTreeCPUFA,
             py::arg("points_query"), py::arg("nr_nns_searches"), py::arg("part_nr"));

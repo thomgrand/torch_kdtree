@@ -62,7 +62,6 @@ set(INTERFACE_CPU_SOURCE_LIST
 
 set(INTERFACE_GPU_SOURCE_LIST
     "${COMMON_GPU_SOURCE_LIST}"
-    "src/nndistance_g.cu"
     "src/interface.cpp")
 
 
@@ -131,10 +130,38 @@ endif()
 
 #set_target_properties(test_kdtree PROPERTIES
 #                            CUDA_SEPARABLE_COMPILATION ON)
-pybind11_add_module(cp_knn ${INTERFACE_SOURCE_LIST})
 
 if (BUILD_GPU)
-    target_link_libraries(cp_knn cudart ${COMMON_LINKS})
+    #find_package(CUDA REQUIRED)
+    #find_package(PythonInterp 3.1 REQUIRED)
+    #find_package(PythonLibs 3.1 REQUIRED)
+    include_directories(
+    ${PYTHON_INCLUDE_DIRS}
+    ./pybind11/include
+    )
+    ##pybind11 sets -fvisibility=hidden in INTERFACE_COMPILE_OPTIONS on it's module target
+    #get_target_property(modifacecopts module INTERFACE_COMPILE_OPTIONS)
+    #list(REMOVE_ITEM modifacecopts "-fvisibility=hidden")
+    #set_target_properties(module PROPERTIES INTERFACE_COMPILE_OPTIONS "${modifacecopts}")
+    add_library(cp_knn SHARED
+                ${INTERFACE_SOURCE_LIST})
+    #target_link_libraries(cp_knn cudart ${COMMON_LINKS})
+    set_property(TARGET cp_knn PROPERTY CUDA_ARCHITECTURES 50-real 50-virtual)
+    target_link_libraries(cp_knn
+          ${PYTHON_LIBRARIES}
+          cudart
+          pybind11::module)
+
+    #Wrong extension created (at least in Windows)
+    set_target_properties(
+    cp_knn 
+    PROPERTIES 
+        OUTPUT_NAME "cp_knn"
+        SUFFIX ${PYTHON_MODULE_EXTENSION}
+    )
+          
+else()
+    pybind11_add_module(cp_knn ${INTERFACE_SOURCE_LIST})
 endif()
 
 
