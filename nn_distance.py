@@ -16,17 +16,30 @@ if gpu_available:
         print("The library was not successfully compiled using CUDA. Only the CPU version will be available.")
 
 class CPKDTree:
-    def __init__(self, structured_points, part_nr, shuffled_ind, device):
+    def __init__(self, points_ref, device, levels):
+        """Builds the KDTree. See :ref:`build_kd_tree` for more details.
+        """
         assert(device in ['gpu', 'cpu'])
 
-        self.dtype = structured_points.dtype
-        self.dtype_idx = np.int32
-        self.structured_points = structured_points
-        self.part_nr = part_nr
-        self.shuffled_ind = shuffled_ind
+        
+        self.dtype = points_ref.dtype
+        self.dims = points_ref.shape[-1]
+        kdtree_str = "KDTree" + device.upper() + "%dD" % (self.dims) + ("F" if self.dtype == np.float32 else "")
+
+        try:
+            self.kdtree = getattr(cp_knn, kdtree_str)(points_ref, levels)
+        except AttributeError as err:
+            raise RuntimeError("Could not find the KD-Tree for your specified options. This probably means the library was not compiled for the specified dimensionality, precision or the targeted device.")
+
+        self.structured_points = self.kdtree.get_structured_points()
+        self.shuffled_ind = self.kdtree.get_shuffled_inds()
         self.use_gpu = use_gpu = (device == 'gpu')
-        self.kdtree_func = (self._search_kd_tree_gpu if use_gpu else self._search_kd_tree_cpu)
         self.lib = (cp if use_gpu else np)
+        self.dtype_idx = self.lib.int32
+
+        if self.use_gpu:
+            self.structured_points = cp.asarray(self.structured_points)
+            self.shuffled_ind = cp.asarray(self.shuffled_ind)
         
     def _search_kd_tree_gpu(self, points_query, nr_nns_searches, result_dists, result_idx):
         cp_knn.searchKDTreeGPU(points_query, nr_nns_searches, self.part_nr, result_dists, result_idx)
@@ -34,31 +47,60 @@ class CPKDTree:
     def _search_kd_tree_cpu(self, points_query, nr_nns_searches, result_dists, result_idx):
         cp_knn.searchKDTreeCPU(points_query, nr_nns_searches, self.part_nr, result_dists, result_idx)
 
-    def search_kd_tree(self, points_query, nr_nns_searches=1, result_dists=None, result_idx=None):
+    def query(self, points_query, nr_nns_searches=1, result_dists=None, result_idx=None):
+        """Searches the specified KD-Tree for KNN of the given points
+
+        Parameters
+        ----------
+        points_query : ndarray of float or double precision
+            Points for which the KNNs will be computed
+        nr_nns_searches : int, optional
+            How many closest nearest neighbors will be queried (=k), by default 1
+        result_dists : ndarray of float or double precision, optional
+            Target array that will hold the resulting distance. If not specified, this will be dynamically created.
+        result_idx : ndarray of dtype_idx type, optional
+            Target array that will hold the resulting KNN indices. If not specified, this will be dynamically created.
+
+        Returns
+        -------
+        tuple
+            Returns the tuple containing
+
+            * dists (ndarray of float or double precision) : Quadratic distance of KD-Tree points to the queried points
+            * inds (ndarray of type int) : Indices of the K closest neighbors
+
+        Raises
+        ------
+        RuntimeError
+            If the requested KDTree can not be constructed.
+        """
+        if self.use_gpu and type(points_query) == np.ndarray:
+            points_query = cp.asarray(points_query)
+
         if result_dists is None:
             result_dists = self.lib.empty(shape=[points_query.shape[0], nr_nns_searches], dtype=self.dtype)
         if result_idx is None:
             result_idx = self.lib.empty(shape=[points_query.shape[0], nr_nns_searches], dtype=self.dtype_idx)
             
-        assert(result_dists.shape == [points_query.shape[0], nr_nns_searches])
+        assert(list(result_dists.shape) == [points_query.shape[0], nr_nns_searches])
         assert(result_dists.dtype == self.dtype)
-        assert(result_idx.shape == [points_query.shape[0], nr_nns_searches])
+        assert(list(result_idx.shape) == [points_query.shape[0], nr_nns_searches])
         assert(result_idx.dtype == self.dtype_idx)
 
-        if not result_dists.flags['C_CONTIGUOUS']:
-            result_dists = self.lib.ascontiguousarray(result_dists)
+        for arr in [result_dists, result_idx, points_query]:
+            if not arr.flags['C_CONTIGUOUS']:
+                arr[:] = self.lib.ascontiguousarray(arr)
 
-        if not result_idx.flags['C_CONTIGUOUS']:
-            result_idx = self.lib.ascontiguousarray(result_idx)
-
+        get_ptr = lambda arr: (arr.data.ptr if self.use_gpu else arr.__array_interface__['data'][0])
         #Get pointer as int
-        #pointer, read_only_flag = a.__array_interface__['data'] #Numpy
-        #a.data.ptr #Cupy
+        points_query_ptr = get_ptr(points_query)
+        dists_ptr = get_ptr(result_dists)
+        knn_idx_ptr = get_ptr(result_idx)
 
-        self.kdtree_func(points_query, self.part_nr, nr_nns_searches, result_dists, result_idx)
+        self.kdtree.query(points_query_ptr, points_query.shape[0], nr_nns_searches, dists_ptr, knn_idx_ptr)
         return result_dists, self.shuffled_ind[result_idx]
 
-def build_kd_tree(points_ref, device=None, levels=None, **kwargs):
+def build_kd_tree(points_ref, device=None, levels=None):
     """Builds the KD-Tree for subsequent queries using searchKDTree
 
     Builds the KD-Tree for subsequent queries using searchKDTree. Note that the 
@@ -76,56 +118,18 @@ def build_kd_tree(points_ref, device=None, levels=None, **kwargs):
 
     Returns
     -------
-    tuple
-        Returns a triplet 
-        
-        * structured_points: points_ref, ordered by the KD-Tree structure
-        * part_nr: Unique ID of the KD-Tree to later refer to the created tree
-        * shuffled_ind: Indices to map structured_points -> points_ref
+    CPKDTree
+        Returns a kdtree with a query method to find the nearest neighbors inside a point-cloud
     """
     if device is None:
         device = ('gpu' if gpu_available else 'cpu')
+
+    if levels is None:
+      levels = np.maximum(1, np.minimum(13, int(np.log(int(points_ref.shape[0])) / np.log(2))-3))
     
     assert(type(points_ref) == np.ndarray)
     assert(levels >= 1 and levels <= 13)
     assert(device != 'gpu' or gpu_available)
     assert(device in ['gpu', 'cpu'])
-    if levels is None:
-      levels = np.maximum(1, np.minimum(13, int(np.log(int(points_ref.shape[0])) / np.log(2))-3))
 
-    structured_points, part_nr, shuffled_ind = (cp_knn.buildKDTreeGPU(points_ref, levels=levels, **kwargs) if device == 'gpu' else cp_knn.buildKDTreeCPU(points_ref, levels=levels, **kwargs))
-    return CPKDTree(structured_points, part_nr, shuffled_ind, device)
-
-
-def search_kd_tree(points_query, metadata_address_kdtree, nr_nns_searches=1, shuffled_inds=None, **kwargs):
-    """Searches the specified KD-Tree for KNN of the given points
-
-    Parameters
-    ----------
-    points_query : tensor or array of float or double precision
-        Points for which the KNNs will be computed
-    metadata_address_kdtree : int
-        Unique ID of the KD-Tree to be queried (see buildKDTree)
-    nr_nns_searches : int, optional
-        How many closest nearest neighbors will be queried (=k), by default 1
-    shuffled_inds : tensor or array of type int, optional
-        When creating the tree using buildKDTree, this array is returned to map
-        the indices from structured_points, back to the original indices.
-        If none, this remapping will not be performed and the returned indices
-        map to the indices in structured_points.
-
-    Returns
-    -------
-    tuple
-        Returns the tuple containing
-
-        * dists (tensor of float or double precision) : Quadratic distance of KD-Tree points to the queried points
-        * inds (tensor of type int) : Indices of the K closest neighbors
-    """
-    dists, inds = _op_library.kd_tree_knn_search(points_query, metadata_address_kdtree=metadata_address_kdtree, 
-                nr_nns_searches=nr_nns_searches, **kwargs)
-
-    if shuffled_inds is not None:
-        inds = tf.gather(shuffled_inds, tf.cast(inds, tf.int32))
-
-    return dists, inds
+    return CPKDTree(points_ref, device, levels)

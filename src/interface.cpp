@@ -91,7 +91,7 @@ struct KDTree
     KDTree(const py::array_t<T, py::array::c_style | py::array::forcecast>& points_ref, const int levels)
     {
         const auto dims_arr = points_ref.shape(1);
-        const float* points_raw = points_ref.data();
+        const T* points_raw = points_ref.data();
         const auto nr_points = points_ref.shape(0);
 
         {
@@ -160,11 +160,21 @@ struct KDTree
     }
 };
 
-int add(int i, int j)
-{
-    return i + j;
-}
+#define KDTREE_INSTANTIATION(T, dims, use_gpu, name) (py::class_< KDTree<T, dims, use_gpu>, std::shared_ptr< KDTree<T, dims, use_gpu>>>(mod, name) \
+                                                .def(py::init<py::array_t<T>, int>(), py::arg("points_ref"), py::arg("levels")) \
+                                                .def("get_shuffled_inds", &KDTree<T, dims, use_gpu>::get_shuffled_inds) \
+                                                .def("get_structured_points", &KDTree<T, dims, use_gpu>::get_structured_points) \
+                                                .def("query", &KDTree<T, dims, use_gpu>::query, py::arg("points_query_ptr"), py::arg("nr_query_points"), py::arg("nr_nns_searches"), \
+                                                                                                py::arg("dist_arr_ptr"), py::arg("knn_idx_ptr")))
 
+bool check_for_gpu()
+{
+#ifdef GPU_AVAILABLE //Set inside CMake
+    return true;
+#else
+    return false;
+#endif
+}
 
 PYBIND11_MODULE(cp_knn, mod) {
     mod.doc() = R"pbdoc(
@@ -180,39 +190,12 @@ PYBIND11_MODULE(cp_knn, mod) {
            subtract
     )pbdoc";
 
-    py::class_< KDTree<float, 3, false>, std::shared_ptr< KDTree<float, 3, false>>>(mod, "KDTreeCPU3DF")
-        .def(py::init<py::array_t<float>, int>(), py::arg("points_ref"), py::arg("levels"))
-        .def("get_shuffled_inds", &KDTree<float, 3, false>::get_shuffled_inds)
-        .def("get_structured_points", &KDTree<float, 3, false>::get_structured_points)
-        .def("query", &KDTree<float, 3, false>::query);
+    KDTREE_INSTANTIATION(float, 3, false, "KDTreeCPU3DF");
+    KDTREE_INSTANTIATION(double, 3, false, "KDTreeCPU3D");
+    KDTREE_INSTANTIATION(float, 3, true, "KDTreeGPU3DF");
+    KDTREE_INSTANTIATION(double, 3, true, "KDTreeGPU3D");
 
-    py::class_< KDTree<float, 3, true>, std::shared_ptr< KDTree<float, 3, true>>>(mod, "KDTreeGPU3DF")
-        .def(py::init<py::array_t<float>, int>(), py::arg("points_ref"), py::arg("levels"))
-        .def("get_shuffled_inds", &KDTree<float, 3, true>::get_shuffled_inds)
-        .def("get_structured_points", &KDTree<float, 3, true>::get_structured_points)
-        .def("query", &KDTree<float, 3, true>::query);
-
-    mod.def("add", &add, R"pbdoc(
-        Add two numbers
-
-        Some other explanation about the add function.
-    )pbdoc");
-
-    mod.def("subtract", [](int i, int j) { return i - j; }, R"pbdoc(
-        Subtract two numbers
-
-        Some other explanation about the subtract function.
-    )pbdoc");
-
-    //mod.def("buildKDTreeCPU", buildKDTreeCPU<double>);
-    /*mod.def("buildKDTreeCPUF", buildKDTreeCPUF,
-            py::arg("points_ref"), py::arg("levels"));
-
-    mod.def("buildKDTreeGPUF", buildKDTreeGPUF,
-        py::arg("points_ref"), py::arg("levels"));
-
-    mod.def("searchKDTreeCPUFA", searchKDTreeCPUFA,
-            py::arg("points_query"), py::arg("nr_nns_searches"), py::arg("part_nr"));*/
+    mod.def("check_for_gpu", &check_for_gpu, "Check if the library was compiled with GPU support");
 
 #ifdef VERSION_INFO //Set by cmake
     mod.attr("__version__") = VERSION_INFO; //MACRO_STRINGIFY(VERSION_INFO);

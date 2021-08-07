@@ -147,12 +147,14 @@ if (BUILD_GPU)
                 ${INTERFACE_SOURCE_LIST})
     #target_link_libraries(cp_knn cudart ${COMMON_LINKS})
     set_property(TARGET cp_knn PROPERTY CUDA_ARCHITECTURES 50-real 50-virtual)
+    #set_target_properties(cp_knn PROPERTIES COMPILE_DEFINITIONS GPU_AVAILABLE=1)
+    add_definitions(-DGPU_AVAILABLE)
     target_link_libraries(cp_knn
           ${PYTHON_LIBRARIES}
           cudart
           pybind11::module)
 
-    #Wrong extension created (at least in Windows)
+    #Fix wrong extension being created (at least in Windows)
     set_target_properties(
     cp_knn 
     PROPERTIES 
@@ -185,7 +187,7 @@ set_target_properties(cp_knn PROPERTIES COMPILE_DEFINITIONS VERSION_INFO="${CP_K
 # Post-build commands
 add_custom_command(TARGET cp_knn 
                    POST_BUILD
-                   COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:cp_knn> "${PROJECT_SOURCE_DIR}/..")
+                   COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:cp_knn> "${PROJECT_SOURCE_DIR}")
 
 ##################################
 # Tests
