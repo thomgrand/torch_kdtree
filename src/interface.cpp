@@ -162,10 +162,11 @@ struct KDTree
 
 #define KDTREE_INSTANTIATION(T, dims, use_gpu, name) (py::class_< KDTree<T, dims, use_gpu>, std::shared_ptr< KDTree<T, dims, use_gpu>>>(mod, name) \
                                                 .def(py::init<py::array_t<T>, int>(), py::arg("points_ref"), py::arg("levels")) \
-                                                .def("get_shuffled_inds", &KDTree<T, dims, use_gpu>::get_shuffled_inds) \
-                                                .def("get_structured_points", &KDTree<T, dims, use_gpu>::get_structured_points) \
+                                                .def("get_shuffled_inds", &KDTree<T, dims, use_gpu>::get_shuffled_inds, "Returns the shuffled indices to translate from local to global indices") \
+                                                .def("get_structured_points", &KDTree<T, dims, use_gpu>::get_structured_points, "Returns the ordered points how they are used in the KD-Tree") \
                                                 .def("query", &KDTree<T, dims, use_gpu>::query, py::arg("points_query_ptr"), py::arg("nr_query_points"), py::arg("nr_nns_searches"), \
-                                                                                                py::arg("dist_arr_ptr"), py::arg("knn_idx_ptr")))
+                                                                                                py::arg("dist_arr_ptr"), py::arg("knn_idx_ptr")), \
+                                                                                                "Queries the KNN from the KD-Tree and puts the results in the array pointed to by dist_arr_ptr and knn_idx_ptr")
 
 bool check_for_gpu()
 {
@@ -186,14 +187,24 @@ PYBIND11_MODULE(cp_knn, mod) {
         .. autosummary::
            :toctree: _generate
 
-           add
-           subtract
+           KDTreeCPU3DF
+           check_for_gpu
     )pbdoc";
 
     KDTREE_INSTANTIATION(float, 3, false, "KDTreeCPU3DF");
     KDTREE_INSTANTIATION(double, 3, false, "KDTreeCPU3D");
     KDTREE_INSTANTIATION(float, 3, true, "KDTreeGPU3DF");
     KDTREE_INSTANTIATION(double, 3, true, "KDTreeGPU3D");
+
+    KDTREE_INSTANTIATION(float, 2, false, "KDTreeCPU2DF");
+    KDTREE_INSTANTIATION(double, 2, false, "KDTreeCPU2D");
+    KDTREE_INSTANTIATION(float, 2, true, "KDTreeGPU2DF");
+    KDTREE_INSTANTIATION(double, 2, true, "KDTreeGPU2D");
+
+    KDTREE_INSTANTIATION(float, 1, false, "KDTreeCPU1DF");
+    KDTREE_INSTANTIATION(double, 1, false, "KDTreeCPU1D");
+    KDTREE_INSTANTIATION(float, 1, true, "KDTreeGPU1DF");
+    KDTREE_INSTANTIATION(double, 1, true, "KDTreeGPU1D");
 
     mod.def("check_for_gpu", &check_for_gpu, "Check if the library was compiled with GPU support");
 

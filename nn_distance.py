@@ -24,6 +24,7 @@ class CPKDTree:
         
         self.dtype = points_ref.dtype
         self.dims = points_ref.shape[-1]
+        self.nr_ref_points = points_ref.shape[0]
         kdtree_str = "KDTree" + device.upper() + "%dD" % (self.dims) + ("F" if self.dtype == np.float32 else "")
 
         try:
@@ -74,6 +75,9 @@ class CPKDTree:
         RuntimeError
             If the requested KDTree can not be constructed.
         """
+        if nr_nns_searches > self.nr_ref_points:
+            raise RuntimeError("You requested more nearest neighbors than there are in the KD-Tree")
+
         if self.use_gpu and type(points_query) == np.ndarray:
             points_query = cp.asarray(points_query)
 
