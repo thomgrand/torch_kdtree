@@ -116,7 +116,7 @@ if (BUILD_TEST AND BUILD_GPU)
     add_executable(test_kdtree ${EXEC_SOURCE_LIST}) # ${EXEC_HEADERS_LIST})
     target_link_libraries(test_kdtree cudart ${COMMON_LINKS})
     target_include_directories(test_kdtree PRIVATE ${EIGEN_INSTALL_DIR})
-    set_property(TARGET test_kdtree PROPERTY CUDA_ARCHITECTURES 50-real 50-virtual)
+    set_property(TARGET test_kdtree PROPERTY CUDA_ARCHITECTURES 35-real 35-virtual)
     add_dependencies(test_kdtree eigen)
 endif()
 
@@ -146,7 +146,7 @@ if (BUILD_GPU)
     add_library(cp_knn SHARED
                 ${INTERFACE_SOURCE_LIST})
     #target_link_libraries(cp_knn cudart ${COMMON_LINKS})
-    set_property(TARGET cp_knn PROPERTY CUDA_ARCHITECTURES 50-real 50-virtual)
+    set_property(TARGET cp_knn PROPERTY CUDA_ARCHITECTURES 35-real 35-virtual)
     #set_target_properties(cp_knn PROPERTIES COMPILE_DEFINITIONS GPU_AVAILABLE=1)
     add_definitions(-DGPU_AVAILABLE)
     target_link_libraries(cp_knn
@@ -161,6 +161,7 @@ if (BUILD_GPU)
         OUTPUT_NAME "cp_knn"
         SUFFIX ${PYTHON_MODULE_EXTENSION}
     )
+    #TODO: Remove lib prefix in linux
           
 else()
     pybind11_add_module(cp_knn ${INTERFACE_SOURCE_LIST})
