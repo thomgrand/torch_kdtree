@@ -63,7 +63,7 @@ To run the benchmark on your computer, go to the folder scripts and execute `ipy
 
 If this works helps you in your research, please consider acknowledging the github repository, or citing our [paper](https://arxiv.org/abs/2102.09962) from which the library originated.
 
-```
+```bibtex
 @article{grandits_geasi_2021,
 	title = {{GEASI}: {Geodesic}-based earliest activation sites identification in cardiac models},
 	volume = {37},
@@ -77,8 +77,8 @@ If this works helps you in your research, please consider acknowledging the gith
 	journal = {International Journal for Numerical Methods in Biomedical Engineering},
 	author = {Grandits, Thomas and Effland, Alexander and Pock, Thomas and Krause, Rolf and Plank, Gernot and Pezzuto, Simone},
 	year = {2021},
-	keywords = {eikonal equation, cardiac model personalization, earliest activation sites, Hamilton–Jacobi formulation, inverse ECG problem, topological gradient}
+	keywords = {eikonal equation, cardiac model personalization, earliest activation sites, Hamilton–Jacobi formulation, inverse ECG problem, topological gradient},
+	pages = {e3505}
 }
-
 ```
 

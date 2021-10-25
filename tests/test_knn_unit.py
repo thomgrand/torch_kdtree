@@ -1,7 +1,8 @@
 """Script that tests the compiled Cupy KDTree
 """
-#import sys
-#sys.path.append("../") #TODO: Hack
+import sys
+import os
+sys.path.append(os.path.dirname(__file__) + "/../") #TODO: Hack
 
 import os
 import pytest
@@ -69,9 +70,21 @@ class TestCPKDTreeImplementation():
   @pytest.mark.parametrize("device", ["gpu", "cpu"])
   def test_uncompiled_dimension(self, device):
     dims = 436
-    points_ref = np.random.uniform(size=(10, dims)) * 1e3
+    points_ref = np.random.uniform(size=(10, dims)) 
     with pytest.raises(Exception):
       cp_kdtree = build_kd_tree(points_ref, device=device)
+
+  @pytest.mark.parametrize("device", ["gpu", "cpu"])
+  @pytest.mark.parametrize("dtype", [np.float32, np.float64])
+  def test_wrong_dtype(self, device, dtype):
+    dtypes = np.array([np.float32, np.float64])
+    dims = 3
+    points_ref = np.random.uniform(size=(10, dims))
+    points_ref = points_ref.astype(dtype)
+    cp_kdtree = build_kd_tree(points_ref, device=device)
+    points_query = np.random.uniform(size=(10, dims)).astype(dtypes[np.array(dtype) != dtypes][0])
+    with pytest.raises(Exception):
+      result = cp_kdtree.query(points_query) #Call with the wrong dtype
 
   def check_successful(self, points_ref, points_query, k, dists_ref, inds_ref, dists_knn, inds_knn):
 
@@ -99,11 +112,3 @@ class TestCPKDTreeImplementation():
     #  assert(np.all(inds_ref == inds_knn), "Mismatch in KNN-Indices")
     # else:
     assert(np.sum(inds_ref == inds_knn) / inds_ref.size > 0.999, "Too many mismatches in KNN-Indices")
-
-if __name__ == "__main__":
-  pass
-  #with tf.device("/gpu:0"):
-  #  unittest.main()
-
-  #with tf.device("/gpu:0"):
-  #  unittest.main()

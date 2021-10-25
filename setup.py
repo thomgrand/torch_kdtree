@@ -118,14 +118,18 @@ class CMakeBuild(build_ext):
 # The information here can also be placed in setup.cfg - better separation of
 # logic and declaration, and simpler if you include description/version in a file.
 setup(
-    name="cupy_kdtree",
+    name="cp_knn",
     version="1.0",
     author="Thomas Grandits",
     author_email="tomdev@gmx.net",
     description="Implementation of a tf_kdtree in Cupy",
     long_description="",
-    ext_modules=[CMakeExtension("cupy_kdtree")],
+    ext_modules=[CMakeExtension("cp_knn")],
+    install_requires=["numpy>=1.20"],
     cmdclass={"build_ext": CMakeBuild},
     zip_safe=False,
-    extras_require={"test": ["pytest"]}
+    extras_require={
+            "gpu": ["cupy"],
+            "test": ["pytest", "scipy"]
+        }
 )

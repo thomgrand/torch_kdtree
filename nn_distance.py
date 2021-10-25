@@ -78,7 +78,7 @@ class CPKDTree:
         if nr_nns_searches > self.nr_ref_points:
             raise RuntimeError("You requested more nearest neighbors than there are in the KD-Tree")
 
-        if self.use_gpu and type(points_query) == np.ndarray:
+        if self.use_gpu and issubclass(type(points_query), np.ndarray):
             points_query = cp.asarray(points_query)
 
         if result_dists is None:
@@ -90,6 +90,7 @@ class CPKDTree:
         assert(result_dists.dtype == self.dtype)
         assert(list(result_idx.shape) == [points_query.shape[0], nr_nns_searches])
         assert(result_idx.dtype == self.dtype_idx)
+        assert(points_query.dtype == self.dtype)
 
         for arr in [result_dists, result_idx, points_query]:
             if not arr.flags['C_CONTIGUOUS']:
