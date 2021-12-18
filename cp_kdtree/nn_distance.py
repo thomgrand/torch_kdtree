@@ -1,4 +1,4 @@
-import os
+#import os
 import numpy as np
 
 try:
@@ -8,7 +8,7 @@ except ImportError as err:
     print("Import of cupy failed. Only the CPU version will be available.\nError Message: %s" % (err))
     gpu_available = False
 
-import cp_knn
+from . import cp_knn
 
 if gpu_available:
     gpu_available = cp_knn.check_for_gpu()

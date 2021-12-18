@@ -1,14 +1,14 @@
 """Script that tests the compiled Cupy KDTree
 """
-import sys
-import os
-sys.path.append(os.path.dirname(__file__) + "/../") #TODO: Hack
+#import sys
+#import os
+#sys.path.append(os.path.dirname(__file__) + "/../") #TODO: Hack
 
 import os
 import pytest
 import numpy as np
 import cupy as cp
-from nn_distance import build_kd_tree
+from cp_kdtree import build_kd_tree
 import sys
 import timeit
 from scipy.spatial import cKDTree #Reference implementation

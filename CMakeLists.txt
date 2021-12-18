@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.13)
 
 #set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-project (CP_KNN LANGUAGES CUDA CXX)
+project (cp_kdtree LANGUAGES CUDA CXX)
 add_subdirectory(pybind11)
 
 option(BUILD_TEST "Enable building the C++ test"
@@ -10,8 +10,8 @@ option(BUILD_GPU "Enable the GPU build"
        ON)
 
 # The version number.
-set (CP_KNN_VERSION_MAJOR 0)
-set (CP_KNN_VERSION_MINOR 1)
+set (CP_KDTREE_VERSION_MAJOR 0)
+set (CP_KDTREE_VERSION_MINOR 1)
 set (CMAKE_CXX_STANDARD 11)
 
 include(CheckLanguage)
@@ -186,9 +186,11 @@ set_target_properties(cp_knn PROPERTIES COMPILE_DEFINITIONS VERSION_INFO="${CP_K
 
 ##################################
 # Post-build commands
+#Not compatible with setuptools
 add_custom_command(TARGET cp_knn 
                    POST_BUILD
-                   COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:cp_knn> "${PROJECT_SOURCE_DIR}")
+                   COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:cp_knn> "${PROJECT_SOURCE_DIR}/cp_kdtree")
+#CP_KNN_BINARY_DIR
 
 ##################################
 # Tests

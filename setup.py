@@ -5,13 +5,15 @@ import os
 import re
 import subprocess
 import sys
+import pathlib
+from shutil import copyfile
 
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 
 # Convert distutils Windows platform specifiers to CMake -A arguments
 PLAT_TO_CMAKE = {
-    #"win32": "Win32",
+    "win32": "Win32",
     "win-amd64": "x64",
     #"win-arm32": "ARM",
     #"win-arm64": "ARM64",
@@ -28,7 +30,16 @@ class CMakeExtension(Extension):
 
 
 class CMakeBuild(build_ext):
+
+    #def run(self):
+    #    print("Running build...")
+    #    for ext in self.extensions:
+    #        self.build_extension(ext)
+
+    #    super().run()
+
     def build_extension(self, ext):
+        print("Building extension...")
         extdir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
 
         # required for auto-detection of auxiliary "native" libs
@@ -36,6 +47,16 @@ class CMakeBuild(build_ext):
             extdir += os.path.sep
 
         cfg = "Debug" if self.debug else "Release"
+
+        #https://stackoverflow.com/questions/42585210/extending-setuptools-extension-to-use-cmake-in-setup-py
+        # these dirs will be created in build_py, so if you don't have
+        # any python sources to bundle, the dirs will be missing
+        #build_temp = pathlib.Path(self.build_temp)
+        #build_temp.mkdir(parents=True, exist_ok=True)
+        #extdir = pathlib.Path(self.get_ext_fullpath(ext.name))
+        #extdir.mkdir(parents=True, exist_ok=True)
+        extdir_path = pathlib.Path(self.get_ext_fullpath(ext.name))
+
 
         # CMake lets you override the generator - we need to check this.
         # Can be set with Conda-Build, for example.
@@ -45,13 +66,14 @@ class CMakeBuild(build_ext):
         # EXAMPLE_VERSION_INFO shows you how to pass a value into the C++ code
         # from Python.
         cmake_args = [
-            "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(extdir),
+            "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(str(extdir_path.parent.absolute())), #self.build_temp), #extdir),
             "-DPYTHON_EXECUTABLE={}".format(sys.executable),
             "-DEXAMPLE_VERSION_INFO={}".format(self.distribution.get_version()),
             "-DCMAKE_BUILD_TYPE={}".format(cfg),  # not used on MSVC, but no harm
         ]
         build_args = []
 
+        """
         if self.compiler.compiler_type != "msvc":
             # Using Ninja-build since it a) is available as a wheel and b)
             # multithreads automatically. MSVC would require all variables be
@@ -67,31 +89,27 @@ class CMakeBuild(build_ext):
                     pass
 
         else:
+        """
+        # Single config generators are handled "normally"
+        single_config = any(x in cmake_generator for x in {"NMake", "Ninja"})
 
-            # Single config generators are handled "normally"
-            single_config = any(x in cmake_generator for x in {"NMake", "Ninja"})
+        # CMake allows an arch-in-generator style for backward compatibility
+        contains_arch = any(x in cmake_generator for x in {"ARM", "Win64"})
 
-            # CMake allows an arch-in-generator style for backward compatibility
-            contains_arch = any(x in cmake_generator for x in {"ARM", "Win64"})
+        # Specify the arch if using MSVC generator, but only if it doesn't
+        # contain a backward-compatibility arch spec already in the
+        # generator name.
+        if not single_config and not contains_arch:
+            cmake_args += ["-A", PLAT_TO_CMAKE[self.plat_name]]
 
-            # Specify the arch if using MSVC generator, but only if it doesn't
-            # contain a backward-compatibility arch spec already in the
-            # generator name.
-            if not single_config and not contains_arch:
-                cmake_args += ["-A", PLAT_TO_CMAKE[self.plat_name]]
+        # Multi-config generators have a different way to specify configs
+        if not single_config:
+            #cmake_args += [
+            #    "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY_{}={}".format(cfg.upper(), extdir)
+            #]
+            build_args += ["--config", cfg]
 
-            # Multi-config generators have a different way to specify configs
-            if not single_config:
-                cmake_args += [
-                    "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY_{}={}".format(cfg.upper(), extdir)
-                ]
-                build_args += ["--config", cfg]
-
-        if sys.platform.startswith("darwin"):
-            # Cross-compile support for macOS - respect ARCHFLAGS if set
-            archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
-            if archs:
-                cmake_args += ["-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs))]
+        print("Building extension #2...")
 
         # Set CMAKE_BUILD_PARALLEL_LEVEL to control the parallel build level
         # across all generators.
@@ -105,7 +123,7 @@ class CMakeBuild(build_ext):
         if not os.path.exists(self.build_temp):
             os.makedirs(self.build_temp)
             
-        print(self.build_temp)
+        print("Build temp dir: ", self.build_temp, extdir)
 
         subprocess.check_call(
             ["cmake", ext.sourcedir] + cmake_args, cwd=self.build_temp
@@ -114,15 +132,20 @@ class CMakeBuild(build_ext):
             ["cmake", "--build", "."] + build_args, cwd=self.build_temp
         )
 
+        #copyfile(src, dst)
+
+        print("Args: ", ext.sourcedir, cmake_args, build_args)
+
 
 # The information here can also be placed in setup.cfg - better separation of
 # logic and declaration, and simpler if you include description/version in a file.
 setup(
-    name="cp_knn",
+    name="cp_kdtree",
     version="1.0",
     author="Thomas Grandits",
     author_email="tomdev@gmx.net",
     description="Implementation of a tf_kdtree in Cupy",
+    packages=["cp_kdtree"],
     long_description="",
     ext_modules=[CMakeExtension("cp_knn")],
     install_requires=["numpy>=1.20"],
@@ -131,5 +154,8 @@ setup(
     extras_require={
             "gpu": ["cupy"],
             "test": ["pytest", "scipy"]
-        }
+        },
+    package_data={
+        "cp_kdtree": ["*.py", "*.pyd", "*.so"],
+    }
 )
