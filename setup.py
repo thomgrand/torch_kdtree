@@ -90,7 +90,7 @@ class CMakeBuild(build_ext):
                     pass
 
         else:
-        """
+        #"""
         # Single config generators are handled "normally"
         single_config = any(x in cmake_generator for x in {"NMake", "Ninja"})
 
@@ -141,22 +141,19 @@ class CMakeBuild(build_ext):
 # The information here can also be placed in setup.cfg - better separation of
 # logic and declaration, and simpler if you include description/version in a file.
 setup(
-    name="cp_kdtree",
+    name="torch_kdtree",
     version="1.0",
     author="Thomas Grandits",
     author_email="tomdev@gmx.net",
-    description="Implementation of a tf_kdtree in Cupy",
-    packages=["cp_kdtree"],
+    description="Implementation of the tf_kdtree in Torch",
+    packages=["torch_kdtree"],
     long_description="",
-    ext_modules=[CMakeExtension("cp_knn")],
-    install_requires=["numpy>=1.20"],
+    ext_modules=[CMakeExtension("torch_knn")],
+    install_requires=["numpy>=1.20", "torch"],
     cmdclass={"build_ext": CMakeBuild},
     zip_safe=False,
     extras_require={
-            "gpu": ["cupy"],
-            "test": ["pytest", "scipy"]
-        },
-    package_data={
-        "cp_kdtree": ["*.py", "*.pyd", "*.so"],
-    }
+            "tests": ["pytest", "scipy"],
+            'docs': ["sphinx", "pydata_sphinx_theme"]
+        }
 )

@@ -1,5 +1,5 @@
 # CUDA/Tensorflow KD-Tree K-Nearest Neighbor Operator
-This repository implements a KD-Tree on CUDA with an interface for [cupy](https://cupy.dev/). It is a port of a previous implementation for tensorflow called [tf_kdtree](https://github.com/thomgrand/tf_kdtree).
+This repository implements a KD-Tree on CUDA with an interface for [torch](https://pytorch.org/). It is a port of a previous implementation for tensorflow called [tf_kdtree](https://github.com/thomgrand/tf_kdtree).
 
 The KD-Tree is always generated using the CPU, but is automatically transferred to the GPU for cupy operations there. The KD-Tree implementation will search the k nearest neighbors of each queried point in logarithmic time and is best suited for repeated nearest neighbor queries in a static point cloud.
 
@@ -8,31 +8,44 @@ The algorithms' dimensions are currently defined through template parameters and
 # Usage Examples
 
 ```python
-from cp_kdtree import build_kd_tree
-import cupy as cp
+from torch_kdtree import build_kd_tree
+import torch
 from scipy.spatial import KDTree #Reference implementation
 import numpy as np
 
 #Dimensionality of the points and KD-Tree
 d = 3
 
+#Specify the device on which we will operate
+#Currently only one GPU is supported
+device = torch.device("cuda")
+
 #Create some random point clouds
-points_ref = np.random.uniform(size=(1000, d)).astype(np.float32) * 1e3
-points_query = cp.random.uniform(size=(100, d)).astype(cp.float32) * 1e3
+points_ref = torch.randn(size=(1000, d), dtype=torch.float32, device=device, requires_grad=True) * 1e3
+points_query = torch.randn(size=(100, d), dtype=torch.float32, device=device, requires_grad=True) * 1e3
 
 #Create the KD-Tree on the GPU and the reference implementation
-cp_kdtree = build_kd_tree(points_ref, device='gpu')
-kdtree = KDTree(points_ref)
+torch_kdtree = build_kd_tree(points_ref)
+kdtree = KDTree(points_ref.detach().cpu().numpy())
 
 #Search for the 5 nearest neighbors of each point in points_query
 k = 5
-dists, inds = cp_kdtree.query(points_query, nr_nns_searches=k)
-dists_ref, inds_ref = kdtree.query(points_query.get(), k=k)
+dists, inds = torch_kdtree.query(points_query, nr_nns_searches=k)
+dists_ref, inds_ref = kdtree.query(points_query.detach().cpu().numpy(), k=k)
 
 #Test for correctness 
 #Note that the cupy_kdtree distances are squared
-assert(np.all(inds.get() == inds_ref))
-assert(np.allclose(cp.sqrt(dists).get(), dists_ref, atol=1e-5))
+assert(np.all(inds.cpu().numpy() == inds_ref))
+assert(np.allclose(torch.sqrt(dists).detach().cpu().numpy(), dists_ref, atol=1e-5))
+```
+
+We can also compute the gradient w.r.t. both point-clouds.
+
+```python
+(0.5 * torch.sum(dists)).backward()
+grad = points_query.grad 
+grad_comp = torch.sum((points_query[:, None] - points_ref[inds]), axis=-2)
+print(torch.allclose(points_query.grad, grad_comp)) #Should print True
 ```
 
 # Installation
@@ -40,7 +53,7 @@ assert(np.allclose(cp.sqrt(dists).get(), dists_ref, atol=1e-5))
 Prerequisites
 -------------
 - Numpy (installed with `setuptools`)
-- Cupy (installed with `setuptools`)
+- Torch (installed with `setuptools`)
 - Cuda
 - g++, or Visual Studio (MacOSX is untested)
 - CMake
@@ -82,6 +95,7 @@ This will instantiate the template functions for float and double types both on 
 
 # Limitations
 
+- No multi-GPU support
 - Int32 KNN indexing inside the library
 - Data must be cast to contiguous arrays before processing (automatically done by the library)
 - No in-place updates of the KD-Tree. If you modify the point-cloud, you will have to create a new KD-Tree.

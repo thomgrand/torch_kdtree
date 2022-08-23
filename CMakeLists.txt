@@ -1,6 +1,7 @@
 cmake_minimum_required (VERSION 3.13)
 
-project (cp_kdtree LANGUAGES CXX CUDA)
+
+project (torch_kdtree LANGUAGES CXX CUDA)
 add_subdirectory(pybind11)
 
 option(BUILD_TEST "Enable building the C++ test"
@@ -11,8 +12,8 @@ option(PIP_BUILD "Flag signaling the setuptools build"
        OFF)
 
 # The version number.
-set (CP_KDTREE_VERSION_MAJOR 1)
-set (CP_KDTREE_VERSION_MINOR 0)
+set (TORCH_KDTREE_VERSION_MAJOR 1)
+set (TORCH_KDTREE_VERSION_MINOR 0)
 set (CMAKE_CXX_STANDARD 17)
 
 if(NOT DEFINED CMAKE_CUDA_STANDARD)
@@ -115,52 +116,52 @@ if (BUILD_GPU)
     ${PYTHON_INCLUDE_DIRS}
     ./pybind11/include
     )
-    add_library(cp_knn SHARED
+    add_library(torch_knn SHARED
                 ${INTERFACE_SOURCE_LIST})
-    set_property(TARGET cp_knn PROPERTY CUDA_ARCHITECTURES 35-real 35-virtual)
-    #set_target_properties(cp_knn PROPERTIES COMPILE_DEFINITIONS GPU_AVAILABLE=1)
+    set_property(TARGET torch_knn PROPERTY CUDA_ARCHITECTURES 35-real 35-virtual)
+    #set_target_properties(torch_knn PROPERTIES COMPILE_DEFINITIONS GPU_AVAILABLE=1)
     add_definitions(-DGPU_AVAILABLE)
-    target_link_libraries(cp_knn
+    target_link_libraries(torch_knn
           ${PYTHON_LIBRARIES}
           cudart
           pybind11::module)
 
     #Fix wrong extension being created (at least in Windows)
     set_target_properties(
-    cp_knn 
+    torch_knn 
     PROPERTIES 
-        OUTPUT_NAME "cp_knn"
+        OUTPUT_NAME "torch_knn"
         SUFFIX ${PYTHON_MODULE_EXTENSION}
     )
 
     if (NOT WIN32)
         #Remove the lib prefix in linux
-        SET_TARGET_PROPERTIES(cp_knn PROPERTIES PREFIX "")
+        SET_TARGET_PROPERTIES(torch_knn PROPERTIES PREFIX "")
     endif()
           
 else()
-    pybind11_add_module(cp_knn ${INTERFACE_SOURCE_LIST})
+    pybind11_add_module(torch_knn ${INTERFACE_SOURCE_LIST})
 endif()
 
 
 
-target_include_directories(cp_knn PRIVATE ${EIGEN_INSTALL_DIR})
+target_include_directories(torch_knn PRIVATE ${EIGEN_INSTALL_DIR})
 
-target_compile_definitions(cp_knn PUBLIC "$<$<CONFIG:RELEASE>:NDEBUG>")
-set_target_properties(cp_knn PROPERTIES COMPILE_DEFINITIONS VERSION_INFO="${CP_KDTREE_VERSION_MAJOR}.${CP_KDTREE_VERSION_MINOR}")
+target_compile_definitions(torch_knn PUBLIC "$<$<CONFIG:RELEASE>:NDEBUG>")
+set_target_properties(torch_knn PROPERTIES COMPILE_DEFINITIONS VERSION_INFO="${TORCH_KDTREE_VERSION_MAJOR}.${TORCH_KDTREE_VERSION_MINOR}")
 
 ##################################
 # Post-build commands
 #This important copy command also puts the compiled binary together with the python package files
-#If compiled via CLI -> Will copy the binary into "cp_kdtree" in the source folder
+#If compiled via CLI -> Will copy the binary into "torch_kdtree" in the source folder
 if (NOT PIP_BUILD) 
-    add_custom_command(TARGET cp_knn 
+    add_custom_command(TARGET torch_knn 
                        POST_BUILD
-                       COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:cp_knn> "${PROJECT_SOURCE_DIR}/cp_kdtree")
+                       COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:torch_knn> "${PROJECT_SOURCE_DIR}/torch_kdtree")
 else()  #For compilation with setuptools -> Will copy the binary to the other script files
-    add_custom_command(TARGET cp_knn
+    add_custom_command(TARGET torch_knn
         POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:cp_knn> "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/cp_kdtree")
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:torch_knn> "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/torch_kdtree")
 endif()
 
 ##################################
@@ -174,9 +175,9 @@ add_test (NAME python-tests
 )
 
 #Dependencies
-add_dependencies(cp_knn eigen)
+add_dependencies(torch_knn eigen)
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND}
-                  DEPENDS cp_knn)
+                  DEPENDS torch_knn)
 
 ##################################
 # Debug: Print all variables

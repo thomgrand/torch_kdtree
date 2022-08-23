@@ -111,12 +111,12 @@ bool check_for_gpu()
 #endif
 }
 
-PYBIND11_MODULE(cp_knn, mod) {
+PYBIND11_MODULE(torch_knn, mod) {
     mod.doc() = R"pbdoc(
-        Pybind11 example plugin
+        This package implements the torch KD-Tree in C++/CUDA.
         -----------------------
 
-        .. currentmodule:: cp_knn
+        .. currentmodule:: torch_knn
 
         .. autosummary::
            :toctree: _generate

@@ -54,7 +54,7 @@ cbar.set_label('Time [$\\log_{10}$(s)]', rotation=270, labelpad=12)
 
 #https://stackoverflow.com/questions/24814490/how-to-label-rows-cols-of-a-matrix-of-plots
 #Add some annotations
-for ax, row in zip(axes[:,0], ['Scipy KD-Tree', 'Cupy KD-Tree']):
+for ax, row in zip(axes[:,0], ['Scipy KD-Tree', 'Torch KD-Tree']):
     ax.annotate(row, (0, 0.5), xytext=(-45, 0), ha='right', va='center',
                 size=20, rotation=90, xycoords='axes fraction',
                 textcoords='offset points')
