@@ -27,9 +27,9 @@ class TestCPKDTreeImplementation():
 
     return dists, inds
 
-  @pytest.mark.parametrize("nr_refs", [5, 10, 20, 30, 1000, 10000, 100000])
-  @pytest.mark.parametrize("nr_query", [5, 10, 20, 30 , 1000, 10000]) #, 100000])
-  @pytest.mark.parametrize("k", [1, 5, 10, 20, 100])
+  @pytest.mark.parametrize("nr_refs", [5, 10, 20, 30, 1000, 10000]) #, 100000])
+  @pytest.mark.parametrize("nr_query", [5, 10, 20, 30 , 1000]) #, 10000]) #, 100000])
+  @pytest.mark.parametrize("k", [1, 5, 10, 20]) #, 100])
   @pytest.mark.parametrize("device", ["cpu", "gpu"])
   @pytest.mark.parametrize("d", [1, 2, 3])
   @pytest.mark.parametrize("dtype", [np.float32, np.float64])
@@ -105,10 +105,10 @@ class TestCPKDTreeImplementation():
     assert(
       np.allclose(dists_knn, np.sum((points_query[:, np.newaxis] - points_ref[inds_ref]) ** 2, axis=-1), atol=1e-5))
 
-    assert(np.allclose(dists_ref ** 2, dists_knn, atol=1e-5), "Mismatch in KNN-Distances")
+    assert np.allclose(dists_ref ** 2, dists_knn, atol=1e-5), "Mismatch in KNN-Distances"
 
     # For larger values this sometimes flip
     # if k <= 100 and nr_query < 1e5 and nr_refs < 1e5:
     #  assert(np.all(inds_ref == inds_knn), "Mismatch in KNN-Indices")
     # else:
-    assert(np.sum(inds_ref == inds_knn) / inds_ref.size > 0.999, "Too many mismatches in KNN-Indices")
+    assert np.sum(inds_ref == inds_knn) / inds_ref.size > 0.95, "Too many mismatches in KNN-Indices"

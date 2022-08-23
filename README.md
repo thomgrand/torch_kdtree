@@ -1,14 +1,17 @@
 # CUDA/Tensorflow KD-Tree K-Nearest Neighbor Operator
 This repository implements a KD-Tree on CUDA with an interface for [cupy](https://cupy.dev/). It is a port of a previous implementation for tensorflow called [tf_kdtree](https://github.com/thomgrand/tf_kdtree).
 
-TODO
+The KD-Tree is always generated using the CPU, but is automatically transferred to the GPU for cupy operations there. The KD-Tree implementation will search the k nearest neighbors of each queried point in logarithmic time and is best suited for repeated nearest neighbor queries in a static point cloud.
+
+The algorithms' dimensions are currently defined through template parameters and must be known at compile-time. The present version compiles the library for the dimensionalities 1, 2, 3. See [Compiling additional dimensions](#compiling-additional-dimensions) for instructions on how to compile additional dimensions.
 
 # Usage Examples
 
 ```python
-from cupy_kdtree import build_kd_tree
+from cp_kdtree import build_kd_tree
 import cupy as cp
-from scipy.spatial import cKDTree #Reference implementation
+from scipy.spatial import KDTree #Reference implementation
+import numpy as np
 
 #Dimensionality of the points and KD-Tree
 d = 3
@@ -19,12 +22,12 @@ points_query = cp.random.uniform(size=(100, d)).astype(cp.float32) * 1e3
 
 #Create the KD-Tree on the GPU and the reference implementation
 cp_kdtree = build_kd_tree(points_ref, device='gpu')
-kdtree = cKDTree(points_ref)
+kdtree = KDTree(points_ref)
 
 #Search for the 5 nearest neighbors of each point in points_query
 k = 5
 dists, inds = cp_kdtree.query(points_query, nr_nns_searches=k)
-dists_ref, inds_ref = kdtree.query(points_query, k=k)
+dists_ref, inds_ref = kdtree.query(points_query.get(), k=k)
 
 #Test for correctness 
 #Note that the cupy_kdtree distances are squared
@@ -36,28 +39,53 @@ assert(np.allclose(cp.sqrt(dists).get(), dists_ref, atol=1e-5))
 
 Prerequisites
 -------------
-The library can be built for CPU only, but performs similarly with [cKDTree](https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.cKDTree.html). Below are the requirements for the faster GPU version
-
-- Numpy
-- Cupy
+- Numpy (installed with `setuptools`)
+- Cupy (installed with `setuptools`)
 - Cuda
+- g++, or Visual Studio (MacOSX is untested)
+- CMake
 
 Build Instruction
 -----------------
-*Under construction..*
+The easiest way of installing the library is using `setuptools`:
+```bash
+pip install .
+```
+
 
 # Tests
 The library contains a small C++ example that will perform a small simple test. It is run by calling `./test_kdtree` in the build directory. For 
 
 # Benchmark
 
-We compared both implementations to the scipy.spatial.cKDTree. Note that the benchmarks do not consider the time to build the KD-Trees, or the transfer to the GPU. Times greater than 1 second not shown.
+We compared the implementation to scipy.spatial.KDTree. Note that the benchmarks do not consider the time to build the KD-Trees, or the transfer to the GPU. Times greater than 1 second not shown.
 
-Test Machine Specs: Intel Core i7-5820K CPU 6x @3.30GHz, 32GB of working memory and a NVidia RTX 2080 GPU.
+Test Machine Specs: AMD Ryzen Threadripper 3970X 32x 3.7GHz, 128GB of working memory and a NVidia RTX 3090 GPU.
 
 ![alt text](benchmark.png "Benchmark")
 
-To run the benchmark on your computer, go to the folder scripts and execute `ipython benchmark.py`. This will create `benchmark_results.npz` that can be converted to a figure using `ipython plot_benchmark.py`.
+To run the benchmark on your computer, simply run `python benchmark/benchmark.py`. This will create `benchmark_results.npz` that can be converted to a figure using `python benchmark/plot_benchmark.py` (will require `matplotlib`).
+
+# Compiling additional dimensions
+
+The dimension of the KD-Tree are compile time dynamic, meaning that the dimensions to be queried need to be known at compile time. By default, the library is compiled for d in [1, 2, 3]. You can add additional dimensions by adding new template dimensions to the pybind11 module in `interface.cpp` (line 115).
+
+To add dimensionality 8 for example, you can add:
+```cpp
+    KDTREE_INSTANTIATION(float, 8, false, "KDTreeCPU8DF");
+    KDTREE_INSTANTIATION(double, 8, false, "KDTreeCPU8D");
+    KDTREE_INSTANTIATION(float, 8, true, "KDTreeGPU8DF");
+    KDTREE_INSTANTIATION(double, 8, true, "KDTreeGPU8D");
+```
+
+This will instantiate the template functions for float and double types both on the CPU and GPU.
+
+# Limitations
+
+- Int32 KNN indexing inside the library
+- Data must be cast to contiguous arrays before processing (automatically done by the library)
+- No in-place updates of the KD-Tree. If you modify the point-cloud, you will have to create a new KD-Tree.
+
 
 # Acknowledgements
 

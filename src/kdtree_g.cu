@@ -2,9 +2,6 @@
 #include "kdtree.hpp"
 #include "nndistance.hpp"
 #include "cutils.cuh"
-#include <thrust/copy.h>
-#include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
 
 const int local_dist_buf_size = 256;
 

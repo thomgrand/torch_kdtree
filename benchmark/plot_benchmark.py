@@ -58,6 +58,7 @@ for ax, row in zip(axes[:,0], ['Scipy KD-Tree', 'Cupy KD-Tree']):
     ax.annotate(row, (0, 0.5), xytext=(-45, 0), ha='right', va='center',
                 size=20, rotation=90, xycoords='axes fraction',
                 textcoords='offset points')
+    #ax.grid(True,which="both",ls="--",c='gray')  
 fig.suptitle("Benchmark Timings")
 #fig.text(0.5, 0.04, 'K Variation', ha='center')
 #fig.text(0.04, 0.5, 'Algorithms', va='center', rotation='vertical')
@@ -65,23 +66,31 @@ fig.set_size_inches((10, 8))
 fig.savefig("benchmark.png")
 
 ratios = timing_results[0] / timing_results[1]
-cont_lines = np.linspace(0.1, 29, num=12)
+#cont_lines = np.linspace(0.1, 29, num=12)
 #cont_lines = np.sort(np.concatenate([cont_lines, [1.]]))
 fig, axes = plt.subplots(nrows=1, ncols=nr_ks, sharey='row') #, gridspec_kw={'hspace': 0, 'wspace': 0})
 for k_i, k in enumerate(ks):
     ax = fig.axes[k_i]
     fig.suptitle("Speedup Ratio (GPU/CPU)")
-    cont = ax.contourf(grid[..., 1], grid[..., 0], timing_results[0, ..., k_i].T / timing_results[1, ..., k_i].T, cont_lines)
-    single_cont = ax.contour(grid[..., 1], grid[..., 0], timing_results[0, ..., k_i].T / timing_results[1, ..., k_i].T, np.array([1.]))
-    single_cont.collections[0].set_linewidth(2)
-    single_cont.collections[0].set_color('k')
+    timing_ratio_linear = timing_results[0, ..., k_i].T / timing_results[1, ..., k_i].T
+    timing_ratio = 10*np.log10(timing_ratio_linear)
+    cont = ax.contourf(grid[..., 1], grid[..., 0], timing_ratio_linear) #, cont_lines)
+    single_cont = ax.contour(grid[..., 1], grid[..., 0], timing_ratio_linear, np.array([1, 5, 10, 20, 50]), colors="k", linewidths=2)
+    #for coll in single_cont.collections:
+    #    coll.set_linewidth(2)
+    #    coll.set_color('k')
+
     ax.set_xscale("log")
     ax.set_yscale("log")
+    ax.clabel(single_cont, fontsize=16)
 
     ax.set_title("k = {:d}".format(k))
 
     if k_i == 0:
         ax.set_ylabel("#Refs")
+
+    ax.set_xlabel("#Queries")
+    #ax.grid(True,which="both",ls="--",c='gray')  
 
 #plt.colorbar(cont)
 
@@ -90,5 +99,5 @@ cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
 cbar = fig.colorbar(cont, cax=cbar_ax)
 #cbar = fig.colorbar(cont, cax=cbar_ax, format=ticker.FuncFormatter(fmt))
 cbar.set_label('Speedup ratio', rotation=270, labelpad=12)
-fig.set_size_inches((10, 8))
+fig.set_size_inches((14, 8))
 fig.savefig("benchmark_speedup_ratio.png")

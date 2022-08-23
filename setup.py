@@ -70,6 +70,7 @@ class CMakeBuild(build_ext):
             "-DPYTHON_EXECUTABLE={}".format(sys.executable),
             "-DEXAMPLE_VERSION_INFO={}".format(self.distribution.get_version()),
             "-DCMAKE_BUILD_TYPE={}".format(cfg),  # not used on MSVC, but no harm
+            "-DPIP_BUILD=ON", #To activate setuptools specific CMake commands
         ]
         build_args = []
 
@@ -99,7 +100,7 @@ class CMakeBuild(build_ext):
         # Specify the arch if using MSVC generator, but only if it doesn't
         # contain a backward-compatibility arch spec already in the
         # generator name.
-        if not single_config and not contains_arch:
+        if not single_config and not contains_arch and self.plat_name in PLAT_TO_CMAKE:
             cmake_args += ["-A", PLAT_TO_CMAKE[self.plat_name]]
 
         # Multi-config generators have a different way to specify configs
