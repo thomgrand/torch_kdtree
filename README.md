@@ -1,4 +1,4 @@
-# CUDA/Tensorflow KD-Tree K-Nearest Neighbor Operator
+# CUDA/Torch KD-Tree K-Nearest Neighbor Operator
 This repository implements a KD-Tree on CUDA with an interface for [torch](https://pytorch.org/). It is a port of a previous implementation for tensorflow called [tf_kdtree](https://github.com/thomgrand/tf_kdtree).
 
 The KD-Tree is always generated using the CPU, but is automatically transferred to the GPU for cupy operations there. The KD-Tree implementation will search the k nearest neighbors of each queried point in logarithmic time and is best suited for repeated nearest neighbor queries in a static point cloud.
@@ -67,7 +67,7 @@ pip install .
 
 
 # Tests
-After installation, you can run `python -m pytest tests` to verify that the library has been installed correctly.
+After installation, you can run `python -m pytest .` inside the folder tests to verify that the library has been installed correctly.
 
 # Benchmark
 
