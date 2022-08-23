@@ -11,8 +11,8 @@ option(PIP_BUILD "Flag signaling the setuptools build"
        OFF)
 
 # The version number.
-set (CP_KDTREE_VERSION_MAJOR 0)
-set (CP_KDTREE_VERSION_MINOR 1)
+set (CP_KDTREE_VERSION_MAJOR 1)
+set (CP_KDTREE_VERSION_MINOR 0)
 set (CMAKE_CXX_STANDARD 17)
 
 if(NOT DEFINED CMAKE_CUDA_STANDARD)
@@ -147,7 +147,7 @@ endif()
 target_include_directories(cp_knn PRIVATE ${EIGEN_INSTALL_DIR})
 
 target_compile_definitions(cp_knn PUBLIC "$<$<CONFIG:RELEASE>:NDEBUG>")
-set_target_properties(cp_knn PROPERTIES COMPILE_DEFINITIONS VERSION_INFO="${CP_KNN_VERSION_MAJOR}.${CP_KNN_VERSION_MINOR}")
+set_target_properties(cp_knn PROPERTIES COMPILE_DEFINITIONS VERSION_INFO="${CP_KDTREE_VERSION_MAJOR}.${CP_KDTREE_VERSION_MINOR}")
 
 ##################################
 # Post-build commands

@@ -54,7 +54,7 @@ pip install .
 
 
 # Tests
-The library contains a small C++ example that will perform a small simple test. It is run by calling `./test_kdtree` in the build directory. For 
+After installation, you can run `python -m pytest tests` to verify that the library has been installed correctly.
 
 # Benchmark
 
