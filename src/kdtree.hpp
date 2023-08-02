@@ -199,6 +199,8 @@ struct PartitionInfo
         {
             delete partitions;
             delete leaves;
+            delete structured_points;
+            delete shuffled_inds;
         }
     }
 };
@@ -345,7 +347,7 @@ public:
         const NodeTag old_byte = visited_info[byte_idx];
         const NodeTag modified_mask = moveTagToBinaryPosition(NodeTag::left_right_visited); //getBinaryIndMask();
         const NodeTag unmodified_mask = static_cast<NodeTag>(~modified_mask);
-        const unsigned char bit_idx  = current_lin_ind % 4;
+        //const unsigned char bit_idx  = current_lin_ind % 4;
         visited_info[byte_idx] = static_cast<NodeTag>((unmodified_mask & old_byte) | (moveTagToBinaryPosition(new_bits) & modified_mask));
     }
 

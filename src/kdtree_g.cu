@@ -14,12 +14,9 @@ __device__ void compQuadrDistLeafPartitionBlockwise(const Vec<T, dims>& point, c
 									const point_i_knn_t nr_nns_searches, T& worst_dist)
 {
 	//2D indices
-	const int block_size = blockDim.x * blockDim.y;
-	const int tidx = threadIdx.y * blockDim.x + threadIdx.x;
+	//const int block_size = blockDim.x * blockDim.y;
+	//const int tidx = threadIdx.y * blockDim.x + threadIdx.x;
 
-    /*printf("compQuadrDistLeafPartition: %x, ", partition_leaf.data);
-    printf("%d, ", partition_leaf.nr_points);
-	printf("%d\n", partition_leaf.offset);*/
 	const Vec<T, dims>* partition_data = reinterpret_cast<Vec<T, dims>*>(partition_leaf.data);
     const point_i_t partition_size = partition_leaf.nr_points;
 	const point_i_t partition_offset = partition_leaf.offset;
@@ -300,14 +297,9 @@ __global__ void KDTreeKernel(PartitionInfoDevice<T, dims>* partition_info,
 	//2D indices
 	const auto grid_size = gridDim.x * gridDim.y;
 	const auto blockidx = blockIdx.x + blockIdx.y*gridDim.x;
-	const auto block_size = blockDim.x * blockDim.y; // * blockDim.z;
+	//const auto block_size = blockDim.x * blockDim.y; // * blockDim.z;
 	const auto tidx = threadIdx.y * blockDim.x + threadIdx.x;
-	//const auto global_start_idx = tidx + blockidx * grid_size;
 
-	//extern __shared__ char* shared_mem;
-	//__shared__ Vec<T, dims> buffered_query_points[nr_buffered_query_points];
-	//__shared__ Vec<T, dims> buffered_query_points_proj[nr_buffered_query_points];
-	//__shared__ tree_ind_t leaf_inds[nr_buffered_leaf_inds];
 	__shared__ point_i_t buffered_knn[2*max_nr_nns_searches];
 	__shared__ T buffered_dists[2*max_nr_nns_searches];
 	__shared__ TreeTraversal<T, dims> tree[1];
