@@ -52,6 +52,7 @@ print(torch.allclose(points_query.grad, grad_comp)) #Should print True
 
 Prerequisites
 -------------
+- Python <= 3.10 (3.11 and onwards are incompatible with the provided version of pybind11)
 - Numpy (installed with `setuptools`)
 - Torch (installed with `setuptools`)
 - Cuda

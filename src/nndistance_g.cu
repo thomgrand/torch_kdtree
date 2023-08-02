@@ -81,7 +81,7 @@ __global__ void NmDistanceKernelDynamic(int n, const T* points_ref, int m, const
 	__shared__ T ref_buf[batch*point_dims];
 
 	//2D indices
-	const int blockidx = blockIdx.x + blockIdx.y*gridDim.x;
+	//const int blockidx = blockIdx.x + blockIdx.y*gridDim.x;
 	const int block_size = blockDim.x * blockDim.y; 
 	const int tidx = threadIdx.y * blockDim.x + threadIdx.x;
 	uint32_t* best_i = dev_all_best_i + tidx * nr_nns_searches;
