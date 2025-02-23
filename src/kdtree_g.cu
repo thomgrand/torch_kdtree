@@ -456,53 +456,24 @@ void KDTreeKNNGPUSearch(PartitionInfoDevice<T, dims>* partition_info,
 	#endif*/
 }
 
-template void compQuadrDistLeafPartition<float, float, 3>(const std::array<float, 3>& point, const PartitionLeaf<float, 3>& partition_leaf,
-                                    float* best_dists, point_i_knn_t* best_idx,
-                                    const point_i_knn_t nr_nns_searches);
-                                    
-template void compQuadrDistLeafPartition<double, double, 3>(const std::array<double, 3>& point, const PartitionLeaf<double, 3>& partition_leaf,
-                                    double* best_dists, point_i_knn_t* best_idx,
-                                    const point_i_knn_t nr_nns_searches);
+#define KDTREE_INSTANTIATION(T, dims) template void compQuadrDistLeafPartition<T, T, dims>(const std::array<T, dims>& point, const PartitionLeaf<T, dims>& partition_leaf, \
+				T* best_dists, point_i_knn_t* best_idx, \
+				const point_i_knn_t nr_nns_searches); \
+				template void KDTreeKNNGPUSearch<T, T, dims>(PartitionInfoDevice<T, dims>* partition_info, \
+                    const point_i_t nr_query, \
+                    const std::array<T, dims>* points_query, T * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches); \
+				template PartitionInfoDevice<T, dims>* copyPartitionToGPU(const PartitionInfo<T, dims>& partition_info); \
+				template std::tuple<T*, point_i_t*, T*> copyData<T, dims>(const std::vector<T>& result_dists, const std::vector<point_i_t>& result_idx, const std::vector<std::array<T, dims>>&); \
+				template void freePartitionFromGPU(PartitionInfoDevice<T, dims>* partition_info);
 
-template void KDTreeKNNGPUSearch<float, float, 1>(PartitionInfoDevice<float, 1>* partition_info,
-                    const point_i_t nr_query, 
-                    const std::array<float, 1>* points_query, float * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches);
-template void KDTreeKNNGPUSearch<double, double, 1>(PartitionInfoDevice<double, 1>* partition_info, 
-    const point_i_t nr_query, 
-    const std::array<double, 1>* points_query, double * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches);
-	
-template void KDTreeKNNGPUSearch<float, float, 2>(PartitionInfoDevice<float, 2>* partition_info,
-		const point_i_t nr_query, 
-		const std::array<float, 2>* points_query, float * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches);
-template void KDTreeKNNGPUSearch<double, double, 2>(PartitionInfoDevice<double, 2>* partition_info,
-	const point_i_t nr_query, 
-	const std::array<double, 2>* points_query, double * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches);
 
-template void KDTreeKNNGPUSearch<float, float, 3>(PartitionInfoDevice<float, 3>* partition_info,
-	const point_i_t nr_query, 
-	const std::array<float, 3>* points_query, float * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches);
-template void KDTreeKNNGPUSearch<double, double, 3>(PartitionInfoDevice<double, 3>* partition_info,
-	const point_i_t nr_query, 
-	const std::array<double, 3>* points_query, double * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches);
-
-template PartitionInfoDevice<float, 1>* copyPartitionToGPU(const PartitionInfo<float, 1>& partition_info);
-template PartitionInfoDevice<float, 2>* copyPartitionToGPU(const PartitionInfo<float, 2>& partition_info);
-template PartitionInfoDevice<float, 3>* copyPartitionToGPU(const PartitionInfo<float, 3>& partition_info);
-template PartitionInfoDevice<double, 1>* copyPartitionToGPU(const PartitionInfo<double, 1>& partition_info);
-template PartitionInfoDevice<double, 2>* copyPartitionToGPU(const PartitionInfo<double, 2>& partition_info);
-template PartitionInfoDevice<double, 3>* copyPartitionToGPU(const PartitionInfo<double, 3>& partition_info);
-
-template std::tuple<float*, point_i_t*, float*> copyData<float, 3>(const std::vector<float>& result_dists, const std::vector<point_i_t>& result_idx, const std::vector<std::array<float, 3>>&);
-template std::tuple<double*, point_i_t*, double*> copyData<double, 3>(const std::vector<double>& result_dists, const std::vector<point_i_t>& result_idx, const std::vector<std::array<double, 3>>&);
-
-template void freePartitionFromGPU(PartitionInfoDevice<float, 1>* partition_info);
-template void freePartitionFromGPU(PartitionInfoDevice<float, 2>* partition_info);
-template void freePartitionFromGPU(PartitionInfoDevice<float, 3>* partition_info);
-template void freePartitionFromGPU(PartitionInfoDevice<double, 1>* partition_info);
-template void freePartitionFromGPU(PartitionInfoDevice<double, 2>* partition_info);
-template void freePartitionFromGPU(PartitionInfoDevice<double, 3>* partition_info);
+KDTREE_INSTANTIATION(float, 1);
+KDTREE_INSTANTIATION(double, 1);
+KDTREE_INSTANTIATION(float, 2);
+KDTREE_INSTANTIATION(double, 2);
+KDTREE_INSTANTIATION(float, 3);
+KDTREE_INSTANTIATION(double, 3);
 
 template void freeGPUArray(float* arr);
 template void freeGPUArray(double* arr);
 template void freeGPUArray(point_i_knn_t* arr);
-
