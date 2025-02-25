@@ -56,7 +56,7 @@ Prerequisites
 - Numpy (installed with `setuptools`)
 - Torch (installed with `setuptools`)
 - Cuda
-- g++, or Visual Studio (MacOSX is untested)
+- g++, or Visual Studio x64 (MacOSX is untested)
 - CMake
 
 Build Instruction
@@ -89,14 +89,21 @@ To run the benchmark on your computer, simply run `python benchmark/benchmark.py
 
 # Compiling additional dimensions
 
-The dimension of the KD-Tree are compile time dynamic, meaning that the dimensions to be queried need to be known at compile time. By default, the library is compiled for d in [1, 2, 3]. You can add additional dimensions by adding new template dimensions to the pybind11 module in `interface.cpp` (line 115).
+The dimension of the KD-Tree are compile time dynamic, meaning that the dimensions to be queried need to be known at compile time. By default, the library is compiled for d in [1, 2, 3]. You can add additional dimensions by adding new template dimensions in three places.
 
-To add dimensionality 8 for example, you can add:
+To add dimensionality 8 for example, you have to add the following code snippets  
+`src/interface.cpp` (line 115)
 ```cpp
-    KDTREE_INSTANTIATION(float, 8, false, "KDTreeCPU8DF");
-    KDTREE_INSTANTIATION(double, 8, false, "KDTreeCPU8D");
-    KDTREE_INSTANTIATION(float, 8, true, "KDTreeGPU8DF");
-    KDTREE_INSTANTIATION(double, 8, true, "KDTreeGPU8D");
+KDTREE_INSTANTIATION(float, 8, false, "KDTreeCPU8DF");
+KDTREE_INSTANTIATION(double, 8, false, "KDTreeCPU8D");
+KDTREE_INSTANTIATION(float, 8, true, "KDTreeGPU8DF");
+KDTREE_INSTANTIATION(double, 8, true, "KDTreeGPU8D");
+```
+
+In `src/kdtree_g.cu` (line 476) and `src/kdtree.cpp` (line 221), you add the same code:
+```cpp
+KDTREE_INSTANTIATION(float, 8);
+KDTREE_INSTANTIATION(double, 8);
 ```
 
 This will instantiate the template functions for float and double types both on the CPU and GPU.

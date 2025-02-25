@@ -193,29 +193,6 @@ void KDTreeKNNSearch(PartitionInfo<T, dims>& partition_info,
 	}
 }
 
-template void KDTreeKNNSearch<float, float, 3>(PartitionInfo<float, 3>& partition_info,
-                    const point_i_t nr_query, 
-                    const std::array<float, 3>* points_query, float * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches);
-
-template void KDTreeKNNSearch<double, double, 3>(PartitionInfo<double, 3>& partition_info,
-                    const point_i_t nr_query, 
-                    const std::array<double, 3>* points_query, double * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches);
-
-template void KDTreeKNNSearch<float, float, 2>(PartitionInfo<float, 2>& partition_info,
-                    const point_i_t nr_query, 
-                    const std::array<float, 2>* points_query, float * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches);
-
-template void KDTreeKNNSearch<double, double, 2>(PartitionInfo<double, 2>& partition_info,
-                    const point_i_t nr_query, 
-                    const std::array<double, 2>* points_query, double * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches);
-
-template void KDTreeKNNSearch<float, float, 1>(PartitionInfo<float, 1>& partition_info,
-                    const point_i_t nr_query, 
-                    const std::array<float, 1>* points_query, float * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches);
-
-template void KDTreeKNNSearch<double, double, 1>(PartitionInfo<double, 1>& partition_info,
-                    const point_i_t nr_query, 
-                    const std::array<double, 1>* points_query, double * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches);
 
 template <typename T, dim_t dims, bool delete_partitions>
 PartitionInfo<T, dims, delete_partitions>::PartitionInfo(std::vector<Partition<T>>&& parts, std::vector<PartitionLeaf<T, dims>>&& leaves_, point_i_t* shuffled_inds_, const point_i_t nr_points_) : 
@@ -228,16 +205,16 @@ nr_partitions(parts.size()), nr_leaves(leaves_.size())
     structured_points = leaves[0].data;
 }
 
-template struct PartitionInfo<float, 1, false>;
-template struct PartitionInfo<float, 2, false>;
-template struct PartitionInfo<float, 3, false>;
-template struct PartitionInfo<double, 1, false>;
-template struct PartitionInfo<double, 2, false>;
-template struct PartitionInfo<double, 3, false>;
 
-template struct PartitionInfo<float, 1, true>;
-template struct PartitionInfo<float, 2, true>;
-template struct PartitionInfo<float, 3, true>;
-template struct PartitionInfo<double, 1, true>;
-template struct PartitionInfo<double, 2, true>;
-template struct PartitionInfo<double, 3, true>;
+#define KDTREE_INSTANTIATION(T, dims) template void KDTreeKNNSearch<T, T, dims>(PartitionInfo<T, dims>& partition_info, \
+                    const point_i_t nr_query,  \
+                    const std::array<T, dims>* points_query, T * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches); \
+                    template struct PartitionInfo<T, dims, false>; \
+                    template struct PartitionInfo<T, dims, true>;
+
+KDTREE_INSTANTIATION(float, 1);
+KDTREE_INSTANTIATION(double, 1);
+KDTREE_INSTANTIATION(float, 2);
+KDTREE_INSTANTIATION(double, 2);
+KDTREE_INSTANTIATION(float, 3);
+KDTREE_INSTANTIATION(double, 3);
