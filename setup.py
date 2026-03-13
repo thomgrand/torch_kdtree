@@ -62,6 +62,14 @@ class CMakeBuild(build_ext):
         # Can be set with Conda-Build, for example.
         cmake_generator = os.environ.get("CMAKE_GENERATOR", "")
 
+        # On Windows, cmake may auto-select a Visual Studio version whose CUDA
+        # MSBuild integration hasn't been installed yet (e.g. VS 18/2026 when
+        # CUDA 13 only ships integration for VS 2022).  If that happens, copy
+        # the CUDA *.props / *.targets files from the VS 2022 v170
+        # BuildCustomizations folder into the matching folder for the newer VS
+        # (requires admin once).  See copilot_docs/cmake_improvements.md for
+        # the full workaround.
+
         # Set Python_EXECUTABLE instead if you use PYBIND11_FINDPYTHON
         # EXAMPLE_VERSION_INFO shows you how to pass a value into the C++ code
         # from Python.

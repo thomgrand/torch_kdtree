@@ -2,8 +2,9 @@ from typing import Union
 import torch
 import numpy as np
 import sys
+import importlib
 try:
-    from . import torch_knn
+    torch_knn = importlib.import_module("torch_knn")
 except ImportError as err: 
     #Check if we are on windows, in which case CUDA may need to be manually added to the dll path
     if sys.platform == "win32":
@@ -11,7 +12,7 @@ except ImportError as err:
         from pathlib import Path
         cuda_dir = subprocess.check_output("WHERE nvcc").decode("latin8").splitlines()[0]
         os.add_dll_directory(Path(cuda_dir).parent.as_posix())
-        from . import torch_knn
+        torch_knn = importlib.import_module("torch_knn")
     else:
         raise(err)
 

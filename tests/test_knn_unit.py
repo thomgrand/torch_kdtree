@@ -11,7 +11,7 @@ from torch_kdtree import build_kd_tree, gpu_available
 import torch
 import sys
 import timeit
-from scipy.spatial import cKDTree #Reference implementation
+from scipy.spatial import KDTree #Reference implementation
 
 np.random.seed(0)
 
@@ -22,7 +22,7 @@ class TestCPKDTreeImplementation():
 
 
   def reference_solution(self, points_ref, points_query, k):
-    kdtree = cKDTree(points_ref)
+    kdtree = KDTree(points_ref)
     dists, inds = kdtree.query(points_query, k)
 
     return dists, inds

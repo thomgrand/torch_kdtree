@@ -79,7 +79,7 @@ After installation, you can run `python -m pytest .` inside the folder tests to 
 
 # Benchmark
 
-We compared the implementation to scipy.spatial.KDTree. Note that the benchmarks do not consider the time to build the KD-Trees, or the transfer to the GPU. Times greater than 1 second not shown.
+We compared the implementation to scipy.spatial.KDTree (run with `workers=-1` to use all available CPU cores). Note that the benchmarks do not consider the time to build the KD-Trees, or the transfer to the GPU. Times greater than 1 second not shown.
 
 Test Machine Specs: AMD Ryzen Threadripper 3970X 32x 3.7GHz, 128GB of working memory and a NVidia RTX 3090 GPU.
 

@@ -19,7 +19,8 @@ max_timing = np.minimum(np.max(valid_timing_results), 1.)
 cont_lines = np.logspace(np.log10(np.min(valid_timing_results)), np.log10(max_timing), num=15)
 #cont_lines = np.log(cont_lines) / np.log(10)
 #Create figure matrix
-fig, axes = plt.subplots(nrows=nr_algs, ncols=nr_ks, sharex='col', sharey='row') #, gridspec_kw={'hspace': 0, 'wspace': 0})
+fig, axes = plt.subplots(nrows=nr_algs, ncols=nr_ks, sharex='col', sharey='row',
+                         gridspec_kw={'hspace': 0.1, 'wspace': 0.1})
 
 #https://stackoverflow.com/questions/25983218/scientific-notation-colorbar-in-matplotlib
 def fmt(x, pos):
@@ -43,18 +44,16 @@ for alg_i in range(nr_algs):
         if k_i == 0:
             ax.set_ylabel("#Refs")
 
-        if alg_i == nr_algs - 1:
-            ax.set_xlabel("#Queries")
 
-
-fig.subplots_adjust(right=0.8)
+fig.subplots_adjust(right=0.8, bottom=0.1)
+fig.supxlabel('#Queries', fontsize=12)
 cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
 cbar = fig.colorbar(cont, cax=cbar_ax, format=ticker.FuncFormatter(fmt))
 cbar.set_label('Time [$\\log_{10}$(s)]', rotation=270, labelpad=12)
 
 #https://stackoverflow.com/questions/24814490/how-to-label-rows-cols-of-a-matrix-of-plots
 #Add some annotations
-for ax, row in zip(axes[:,0], ['Scipy KD-Tree', 'Torch KD-Tree']):
+for ax, row in zip(axes[:,0], ['Scipy KD-Tree\n(all CPU cores)', 'Torch KD-Tree']):
     ax.annotate(row, (0, 0.5), xytext=(-45, 0), ha='right', va='center',
                 size=20, rotation=90, xycoords='axes fraction',
                 textcoords='offset points')
@@ -68,7 +67,8 @@ fig.savefig("benchmark.png")
 ratios = timing_results[0] / timing_results[1]
 #cont_lines = np.linspace(0.1, 29, num=12)
 #cont_lines = np.sort(np.concatenate([cont_lines, [1.]]))
-fig, axes = plt.subplots(nrows=1, ncols=nr_ks, sharey='row') #, gridspec_kw={'hspace': 0, 'wspace': 0})
+fig, axes = plt.subplots(nrows=1, ncols=nr_ks, sharey='row',
+                         gridspec_kw={'wspace': 0.12})
 for k_i, k in enumerate(ks):
     ax = fig.axes[k_i]
     fig.suptitle("Speedup Ratio (GPU/CPU)")
@@ -89,12 +89,12 @@ for k_i, k in enumerate(ks):
     if k_i == 0:
         ax.set_ylabel("#Refs")
 
-    ax.set_xlabel("#Queries")
     #ax.grid(True,which="both",ls="--",c='gray')  
 
 #plt.colorbar(cont)
 
-fig.subplots_adjust(right=0.8)
+fig.subplots_adjust(right=0.8, bottom=0.12)
+fig.supxlabel('#Queries', fontsize=12)
 cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
 cbar = fig.colorbar(cont, cax=cbar_ax)
 #cbar = fig.colorbar(cont, cax=cbar_ax, format=ticker.FuncFormatter(fmt))

@@ -9,7 +9,7 @@ nr_queries = np.logspace(1, 6, num=7).astype(np.int32)
 
 if __name__ == "__main__":
     #from IPython import get_ipython
-    from scipy.spatial import cKDTree
+    from scipy.spatial import KDTree
     from torch_kdtree import build_kd_tree
     import torch
 
@@ -25,7 +25,7 @@ if __name__ == "__main__":
         points_ref = torch.randn(size=(nr_ref, dims), dtype=torch.float32, device=device) * 1e3
 
         #Build KD-Trees right here to save some time
-        kdtree = cKDTree(points_ref.cpu().numpy())
+        kdtree = KDTree(points_ref.cpu().numpy())
         torch_kdtree = build_kd_tree(points_ref, levels=None)
 
         for query_i, nr_query in enumerate(nr_queries):
@@ -35,9 +35,9 @@ if __name__ == "__main__":
             for k_i, k in enumerate(ks):        
                 print("------- {}, {}, {} --------".format(ref_i, query_i, k_i))
                     
-                #Scipy spatial implementation                
-                #timing = ipython.run_line_magic("timeit", "-o kdtree.query(points_query, k)")
-                timing = timeit.timeit(lambda: kdtree.query(points_query, k), number=5) / 5
+                #Scipy spatial implementation (use all available CPU cores for a fair comparison)
+                #timing = ipython.run_line_magic("timeit", "-o kdtree.query(points_query, k, workers=-1)")
+                timing = timeit.timeit(lambda: kdtree.query(points_query_np, k, workers=-1), number=5) / 5
                 timing_results[0, ref_i, query_i, k_i] = timing #.average
 
                 #Cupy KD-Tree implementation 
