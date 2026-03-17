@@ -34,7 +34,38 @@ dists, inds = torch_kdtree.query(points_query, nr_nns_searches=k)
 dists_ref, inds_ref = kdtree.query(points_query.detach().cpu().numpy(), k=k)
 
 #Test for correctness 
-#Note that the cupy_kdtree distances are squared
+#Note that the torch_kdtree distances are squared
+assert(np.all(inds.cpu().numpy() == inds_ref))
+assert(np.allclose(torch.sqrt(dists).detach().cpu().numpy(), dists_ref, atol=1e-5))
+```
+
+For batched workloads with one KD-tree per sample, you can build and query all trees with tensor-first shapes `[B, N, D]` and `[B, M, D]`:
+
+```python
+from torch_kdtree import build_kd_tree_batched
+import torch
+from scipy.spatial import KDTree #Reference implementation
+import numpy as np
+
+B, N, M, D = 8, 10000, 100, 3
+device = torch.device("cuda")
+
+# Reference and query points are batched in the first dimension
+points_ref_batched = torch.randn(B, N, D, dtype=torch.float32, device=device) * 1e3
+points_query_batched = torch.randn(B, M, D, dtype=torch.float32, device=device) * 1e3
+
+batched_kdtree = build_kd_tree_batched(points_ref_batched, device=device)
+ref_kdtrees = [KDTree(p.detach().cpu().numpy()) for p in points_ref_batched]
+
+#Search for the 5 nearest neighbors of each point, for each batch in points_query
+k = 5
+dists, inds = batched_kdtree.query(points_query_batched, nr_nns_searches=k)
+dists_ref, inds_ref = zip(*[kdtree.query(p.detach().cpu().numpy(), k=k) for p, kdtree in zip(points_query_batched, ref_kdtrees)])
+dists_ref = np.stack(dists_ref, axis=0)
+inds_ref = np.stack(inds_ref, axis=0)
+
+#Test for correctness 
+#Note that the torch_kdtree distances are squared
 assert(np.all(inds.cpu().numpy() == inds_ref))
 assert(np.allclose(torch.sqrt(dists).detach().cpu().numpy(), dists_ref, atol=1e-5))
 ```
@@ -139,3 +170,10 @@ If this works helps you in your research, please consider acknowledging the gith
 }
 ```
 
+---
+
+<div align="center">
+
+Made with ☕ · [Buy me a Ko-Fi](https://ko-fi.com/tomgee) if this saved you time!
+
+</div>

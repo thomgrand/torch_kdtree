@@ -58,16 +58,18 @@ struct KDTree
         return std::move(structured_points_arr);
     }
 
-    void query_recast(const T* points_query, const size_t nr_query_points, const point_i_knn_t nr_nns_searches, T* dist_arr, point_i_knn_t* knn_idx)
+    void query_recast(const T* points_query, const size_t nr_query_points, const point_i_knn_t nr_nns_searches, T* dist_arr, point_i_knn_t* knn_idx, const int64_t stream = 0)
     {
         try
         {
             py::gil_scoped_release release;
             if (use_gpu)
             {
+#ifdef GPU_AVAILABLE
                 KDTreeKNNGPUSearch<T, T, dims>(partition_info_d,
                     nr_query_points, reinterpret_cast<const std::array<T, dims>*>(points_query),
-                    dist_arr, knn_idx, nr_nns_searches);
+                    dist_arr, knn_idx, nr_nns_searches, reinterpret_cast<cudaStream_t>(stream));
+#endif
             }
             else
             {
@@ -82,13 +84,13 @@ struct KDTree
         }
     }
 
-    void query(const size_t points_query_ptr, const size_t nr_query_points, const point_i_knn_t nr_nns_searches, const size_t dist_arr_ptr, const size_t knn_idx_ptr)
+    void query(const size_t points_query_ptr, const size_t nr_query_points, const point_i_knn_t nr_nns_searches, const size_t dist_arr_ptr, const size_t knn_idx_ptr, const int64_t stream = 0)
     {
         //Necessary for CUDA raw pointers being passed around. They can NOT be converted to a py::array_t
         T* points_query = reinterpret_cast<T*>(points_query_ptr);
         T* dist_arr = reinterpret_cast<T*>(dist_arr_ptr);
         point_i_knn_t* knn_idx = reinterpret_cast<point_i_knn_t*>(knn_idx_ptr);
-        this->query_recast(points_query, nr_query_points, nr_nns_searches, dist_arr, knn_idx);
+        this->query_recast(points_query, nr_query_points, nr_nns_searches, dist_arr, knn_idx, stream);
     }
 
     ~KDTree()
@@ -105,7 +107,7 @@ struct KDTree
                                                 .def("get_shuffled_inds", &KDTree<T, dims, use_gpu>::get_shuffled_inds, "Returns the shuffled indices to translate from local to global indices") \
                                                 .def("get_structured_points", &KDTree<T, dims, use_gpu>::get_structured_points, "Returns the ordered points how they are used in the KD-Tree") \
                                                 .def("query", &KDTree<T, dims, use_gpu>::query, py::arg("points_query_ptr"), py::arg("nr_query_points"), py::arg("nr_nns_searches"), \
-                                                                                                py::arg("dist_arr_ptr"), py::arg("knn_idx_ptr")), \
+                                                                                                py::arg("dist_arr_ptr"), py::arg("knn_idx_ptr"), py::arg("stream") = 0LL), \
                                                                                                 "Queries the KNN from the KD-Tree and puts the results in the array pointed to by dist_arr_ptr and knn_idx_ptr")
 
 bool check_for_gpu()

@@ -28,25 +28,49 @@ inline size_t kdtree_getAvailableSharedMem()
 	return static_cast<size_t>(prop.sharedMemPerBlockOptin * 0.9);
 }
 
+inline size_t kdtree_alignUp(const size_t offset, const size_t alignment)
+{
+	if (alignment <= 1)
+		return offset;
+	return ((offset + alignment - 1) / alignment) * alignment;
+}
+
 // Compute the dynamic shared memory bytes required by one KDTree kernel block.
-// Each region gets 8 bytes of padding to absorb worst-case alignment gaps.
-// Tag storage uses max_partitions (1023) as an upper bound to avoid dereferencing
-// the device-side partition_info pointer from host code.
+// This mirrors the kernel's pointer-bump allocator exactly (align then add),
+// avoiding under-allocation on targets where some types require >8-byte alignment.
+// Tag storage uses max_partitions as an upper bound to avoid dereferencing the
+// device-side partition_info pointer from host code.
 template <typename T, dim_t dims>
 size_t kdtree_computeRequiredSharedMem(const point_i_knn_t k)
 {
-	// max_partitions = max_leaves-1 = 1023; worst-case tag slots = ceil(1023/4) = 256 bytes
+	// max_partitions = max_leaves - 1; worst-case tag slots = ceil(max_partitions/4)
 	const size_t max_tag_slots = (static_cast<size_t>(max_partitions - 1) / 4u) + 1u;
-	const size_t pad = 8;
 	size_t bytes = 0;
-	bytes += 2u * static_cast<size_t>(k) * sizeof(point_i_t)    + pad; // buffered_knn (ping-pong)
-	bytes += 2u * static_cast<size_t>(k) * sizeof(T)             + pad; // buffered_dists (ping-pong)
-	bytes += max_tag_slots * sizeof(NodeTag)                     + pad; // node visit tags
-	bytes += sizeof(TreeTraversal<T, dims>)                      + pad; // tree traversal state
-	bytes += static_cast<size_t>(local_dist_buf_size) * sizeof(T)+ pad; // per-block distance buffer
-	bytes += sizeof(Vec<T, dims>)                                + pad; // point_proj
-	bytes += sizeof(T)                                           + pad; // worst_dist
-	bytes += sizeof(bool)                                        + pad; // off_leaf_necessary
+
+	bytes = kdtree_alignUp(bytes, alignof(point_i_t));
+	bytes += 2u * static_cast<size_t>(k) * sizeof(point_i_t); // buffered_knn (ping-pong)
+
+	bytes = kdtree_alignUp(bytes, alignof(T));
+	bytes += 2u * static_cast<size_t>(k) * sizeof(T); // buffered_dists (ping-pong)
+
+	bytes = kdtree_alignUp(bytes, alignof(NodeTag));
+	bytes += max_tag_slots * sizeof(NodeTag); // node visit tags
+
+	bytes = kdtree_alignUp(bytes, alignof(TreeTraversal<T, dims>));
+	bytes += sizeof(TreeTraversal<T, dims>); // tree traversal state
+
+	bytes = kdtree_alignUp(bytes, alignof(T));
+	bytes += static_cast<size_t>(local_dist_buf_size) * sizeof(T); // per-block distance buffer
+
+	bytes = kdtree_alignUp(bytes, alignof(Vec<T, dims>));
+	bytes += sizeof(Vec<T, dims>); // point_proj
+
+	bytes = kdtree_alignUp(bytes, alignof(T));
+	bytes += sizeof(T); // worst_dist
+
+	bytes = kdtree_alignUp(bytes, alignof(bool));
+	bytes += sizeof(bool); // off_leaf_necessary
+
 	return bytes;
 }
 } // namespace
@@ -468,7 +492,7 @@ template
 <typename T, typename T_calc, dim_t dims>
 void KDTreeKNNGPUSearch(PartitionInfoDevice<T, dims>* partition_info,
                     const point_i_t nr_query, 
-                    const std::array<T, dims>* points_query, T * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches)
+                    const std::array<T, dims>* points_query, T * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches, cudaStream_t stream)
 {
 	const size_t required = kdtree_computeRequiredSharedMem<T, dims>(nr_nns_searches);
 	const size_t available = kdtree_getAvailableSharedMem();
@@ -485,18 +509,21 @@ void KDTreeKNNGPUSearch(PartitionInfoDevice<T, dims>* partition_info,
 		throw std::runtime_error(ss.str());
 	}
 
-	initArray<T><<<dim3(16, 16),dim3(32, 32)>>>(dist, INFINITY, nr_query*nr_nns_searches);
+	// Scale the grid to the actual query count so small batches leave SMs free
+	// for concurrent streams from other trees in a BatchedKDTree query.
+	const int n_blocks = std::max(1, std::min(1024, (int)nr_query));
+	dim3 grid_dims(n_blocks, 1);
+	dim3 block_dims(8, 8);
+
+	initArray<T><<<grid_dims, block_dims, 0, stream>>>(dist, INFINITY, (size_t)nr_query * nr_nns_searches);
 
 	#ifndef NDEBUG
 	gpuErrchk( cudaPeekAtLastError() );
 	gpuErrchk( cudaDeviceSynchronize() );
 	#endif
 
-	dim3 grid_dims(32, 32);
-	dim3 block_dims(8, 8);
-
 	const auto points_query_eig = reinterpret_cast<const Vec<T, dims>*>(points_query);
-	KDTreeKernel<T, T_calc, dims><<<grid_dims, block_dims, required>>>(partition_info, nr_query, points_query_eig, dist, idx, nr_nns_searches);
+	KDTreeKernel<T, T_calc, dims><<<grid_dims, block_dims, required, stream>>>(partition_info, nr_query, points_query_eig, dist, idx, nr_nns_searches);
 
 	#ifndef NDEBUG
 	gpuErrchk( cudaPeekAtLastError() );
@@ -509,7 +536,7 @@ void KDTreeKNNGPUSearch(PartitionInfoDevice<T, dims>* partition_info,
 				const point_i_knn_t nr_nns_searches); \
 				template void KDTreeKNNGPUSearch<T, T, dims>(PartitionInfoDevice<T, dims>* partition_info, \
                     const point_i_t nr_query, \
-                    const std::array<T, dims>* points_query, T * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches); \
+                    const std::array<T, dims>* points_query, T * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches, cudaStream_t stream); \
 				template PartitionInfoDevice<T, dims>* copyPartitionToGPU(const PartitionInfo<T, dims>& partition_info); \
 				template std::tuple<T*, point_i_t*, T*> copyData<T, dims>(const std::vector<T>& result_dists, const std::vector<point_i_t>& result_idx, const std::vector<std::array<T, dims>>&); \
 				template void freePartitionFromGPU(PartitionInfoDevice<T, dims>* partition_info);

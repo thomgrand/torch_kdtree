@@ -2,12 +2,14 @@
 
 #include <cstdint>
 
-const int max_leaves = 1024;
+const int max_leaves = 8192;  // 2^13 — matches Python's maximum of 13 tree levels
 const int max_partitions = max_leaves-1;
 const int nr_buffered_query_points = 1024;
 const int nr_buffered_leaf_inds = 256;
 
 #ifdef GPU_AVAILABLE
+
+#include <cuda_runtime_api.h>
 
 /**
  * @brief Ternary (cond ? a : b) helper to decide at compile time which type will be returned.
@@ -68,7 +70,7 @@ template
 <typename T, typename T_calc, dim_t dims>
 void KDTreeKNNGPUSearch(PartitionInfoDevice<T, dims>* partition_info,
                     const point_i_t nr_query, 
-                    const std::array<T, dims>* points_query, T * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches);
+                    const std::array<T, dims>* points_query, T * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches, cudaStream_t stream = 0);
 
 #else
 

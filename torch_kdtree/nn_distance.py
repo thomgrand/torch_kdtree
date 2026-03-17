@@ -21,6 +21,8 @@ if not gpu_available:
     print("The library was not successfully compiled using CUDA. Only the CPU version will be available.")
 
 _transl_torch_device = {"cpu": "CPU", "cuda": "GPU"}
+_max_levels_cpu = 13
+_max_levels_gpu = 12
 
 class TorchKDTree:
     def __init__(self, points_ref : torch.Tensor, device : torch.device, levels : int, squared_distances : bool):
@@ -59,7 +61,8 @@ class TorchKDTree:
         torch_knn.searchKDTreeCPU(points_query, nr_nns_searches, self.part_nr, result_dists, result_idx)
 
     def query(self, points_query : torch.Tensor, nr_nns_searches : int=1, 
-                result_dists : torch.Tensor=None, result_idx : torch.Tensor=None):
+                result_dists : torch.Tensor=None, result_idx : torch.Tensor=None,
+                stream : int=0):
         """Searches the specified KD-Tree for KNN of the given points
 
         Parameters
@@ -116,7 +119,7 @@ class TorchKDTree:
         dists_ptr = result_dists.data_ptr()
         knn_idx_ptr = result_idx.data_ptr()
 
-        self.kdtree.query(points_query_ptr, points_query.shape[0], nr_nns_searches, dists_ptr, knn_idx_ptr)
+        self.kdtree.query(points_query_ptr, points_query.shape[0], nr_nns_searches, dists_ptr, knn_idx_ptr, stream)
         dists = result_dists
         inds = self.shuffled_ind[result_idx.long()]
 
@@ -145,7 +148,9 @@ def build_kd_tree(points_ref : Union[torch.Tensor, np.ndarray], device : torch.d
     squared_distances : bool
         If true, the squared euclidean distances will be returned, by default True,
     levels : int, optional
-        Levels of the KD-Tree (currently between 1 and 13 levels). If None is specified, will pick an appropriate value.
+        Levels of the KD-Tree. CPU supports 1..13 levels. CUDA is currently
+        constrained to 1..12 for stability with large trees. If None is
+        specified, an appropriate value is chosen automatically.
 
     Returns
     -------
@@ -155,16 +160,21 @@ def build_kd_tree(points_ref : Union[torch.Tensor, np.ndarray], device : torch.d
     if device is None:
         device = points_ref.device
 
-    if levels is None:
-      levels = np.maximum(1, np.minimum(13, int(np.log(int(points_ref.shape[0])) / np.log(2))-3))
-
     if issubclass(type(points_ref), np.ndarray):
         points_ref = torch.from_numpy(points_ref)
 
     if issubclass(type(device), str):
         device = torch.device(device)
+
+    max_levels = _max_levels_gpu if device.type == 'cuda' else _max_levels_cpu
+
+    if levels is None:
+        levels = np.maximum(1, np.minimum(max_levels, int(np.log(int(points_ref.shape[0])) / np.log(2))-3))
     
-    assert(levels >= 1 and levels <= 13)
+    if not (levels >= 1 and levels <= max_levels):
+        raise ValueError(
+            f"levels must be between 1 and {max_levels} for device '{device.type}', got {levels}"
+        )
     assert issubclass(type(points_ref), torch.Tensor)
     assert device.type != 'cuda' or gpu_available, "You requested the KD-Tree on the GPU, but the library was compiled with CPU support only"
     assert(device.type in ['cuda', 'cpu'])
