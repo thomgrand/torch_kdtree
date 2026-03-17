@@ -17,12 +17,12 @@ import numpy as np
 d = 3
 
 #Specify the device on which we will operate
-#Currently only one GPU is supported
-device = torch.device("cuda")
+#Uses CUDA when available, otherwise falls back to CPU
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 #Create some random point clouds
-points_ref = torch.randn(size=(1000, d), dtype=torch.float32, device=device, requires_grad=True) * 1e3
-points_query = torch.randn(size=(100, d), dtype=torch.float32, device=device, requires_grad=True) * 1e3
+points_ref = (torch.randn(size=(1000, d), dtype=torch.float32, device=device) * 1e3).requires_grad_()
+points_query = (torch.randn(size=(100, d), dtype=torch.float32, device=device) * 1e3).requires_grad_()
 
 #Create the KD-Tree on the GPU and the reference implementation
 torch_kdtree = build_kd_tree(points_ref)
@@ -48,7 +48,7 @@ from scipy.spatial import KDTree #Reference implementation
 import numpy as np
 
 B, N, M, D = 8, 10000, 100, 3
-device = torch.device("cuda")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Reference and query points are batched in the first dimension
 points_ref_batched = torch.randn(B, N, D, dtype=torch.float32, device=device) * 1e3
@@ -75,7 +75,7 @@ We can also compute the gradient w.r.t. both point-clouds.
 ```python
 (0.5 * torch.sum(dists)).backward()
 grad = points_query.grad 
-grad_comp = torch.sum((points_query[:, None] - points_ref[inds]), axis=-2)
+grad_comp = torch.sum((points_query[:, None] - points_ref[inds]), dim=-2)
 print(torch.allclose(points_query.grad, grad_comp)) #Should print True
 ```
 
