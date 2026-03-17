@@ -1,5 +1,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+#include <pybind11/stl.h>
 #include "kdtree.hpp"
 #include "kdtree_g.hpp"
 
@@ -59,6 +60,7 @@ struct KDTree
 
     void query_recast(const T* points_query, const size_t nr_query_points, const point_i_knn_t nr_nns_searches, T* dist_arr, point_i_knn_t* knn_idx)
     {
+        try
         {
             py::gil_scoped_release release;
             if (use_gpu)
@@ -73,6 +75,10 @@ struct KDTree
                     nr_query_points, reinterpret_cast<const std::array<T, dims>*>(points_query),
                     dist_arr, knn_idx, nr_nns_searches);
             }
+        }
+        catch (const std::exception& err)
+        {
+            throw std::runtime_error(err.what());
         }
     }
 

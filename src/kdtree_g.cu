@@ -1,9 +1,55 @@
 #define EIGEN_USE_GPU
+#include <cstdint>
+#include <sstream>
+#include <string>
 #include "kdtree.hpp"
+#include "kdtree_g.hpp"
 #include "nndistance.hpp"
 #include "cutils.cuh"
 
 const int local_dist_buf_size = 256;
+
+template
+<typename T, typename T_calc, dim_t dims>
+__global__ void KDTreeKernel(PartitionInfoDevice<T, dims>* partition_info,
+	const point_i_t nr_query,
+	const Vec<T, dims>* points_query, T* all_best_dists_d, point_i_knn_t* all_best_i_d, const point_i_knn_t nr_nns_searches);
+
+namespace
+{
+// Query the practical dynamic shared memory limit for the current GPU.
+// Uses sharedMemPerBlockOptin (the opt-in maximum) with a 10% safety margin.
+inline size_t kdtree_getAvailableSharedMem()
+{
+	int devId = 0;
+	cudaGetDevice(&devId);
+	cudaDeviceProp prop{};
+	cudaGetDeviceProperties(&prop, devId);
+	return static_cast<size_t>(prop.sharedMemPerBlockOptin * 0.9);
+}
+
+// Compute the dynamic shared memory bytes required by one KDTree kernel block.
+// Each region gets 8 bytes of padding to absorb worst-case alignment gaps.
+// Tag storage uses max_partitions (1023) as an upper bound to avoid dereferencing
+// the device-side partition_info pointer from host code.
+template <typename T, dim_t dims>
+size_t kdtree_computeRequiredSharedMem(const point_i_knn_t k)
+{
+	// max_partitions = max_leaves-1 = 1023; worst-case tag slots = ceil(1023/4) = 256 bytes
+	const size_t max_tag_slots = (static_cast<size_t>(max_partitions - 1) / 4u) + 1u;
+	const size_t pad = 8;
+	size_t bytes = 0;
+	bytes += 2u * static_cast<size_t>(k) * sizeof(point_i_t)    + pad; // buffered_knn (ping-pong)
+	bytes += 2u * static_cast<size_t>(k) * sizeof(T)             + pad; // buffered_dists (ping-pong)
+	bytes += max_tag_slots * sizeof(NodeTag)                     + pad; // node visit tags
+	bytes += sizeof(TreeTraversal<T, dims>)                      + pad; // tree traversal state
+	bytes += static_cast<size_t>(local_dist_buf_size) * sizeof(T)+ pad; // per-block distance buffer
+	bytes += sizeof(Vec<T, dims>)                                + pad; // point_proj
+	bytes += sizeof(T)                                           + pad; // worst_dist
+	bytes += sizeof(bool)                                        + pad; // off_leaf_necessary
+	return bytes;
+}
+} // namespace
 
 //TODO: Sort and break for possible additional speedup
 template
@@ -278,16 +324,14 @@ inline __device__ void findNextLeaf(TreeTraversal<T, dims>& tree,
 	}
 }
 
-const int max_nr_nodes = 2048*4;
-static_assert(max_nr_nodes % 4 == 0, "Alignment off, since 4 nodes fit into a byte");
-const int max_nr_nns_searches = 128;
-
 template 
 <typename T, typename T_calc, dim_t dims>
 __global__ void KDTreeKernel(PartitionInfoDevice<T, dims>* partition_info,
 	const point_i_t nr_query, 
 	const Vec<T, dims>* points_query, T* all_best_dists_d, point_i_knn_t* all_best_i_d, const point_i_knn_t nr_nns_searches)
 {
+	extern __shared__ unsigned char shared_mem[];
+
 	assert(nr_nns_searches <= partition_info->nr_points);
 
 	const auto nr_partitions = partition_info->nr_partitions;
@@ -300,23 +344,37 @@ __global__ void KDTreeKernel(PartitionInfoDevice<T, dims>* partition_info,
 	//const auto block_size = blockDim.x * blockDim.y; // * blockDim.z;
 	const auto tidx = threadIdx.y * blockDim.x + threadIdx.x;
 
-	__shared__ point_i_t buffered_knn[2*max_nr_nns_searches];
-	__shared__ T buffered_dists[2*max_nr_nns_searches];
-	__shared__ TreeTraversal<T, dims> tree[1];
-	__shared__ NodeTag tags[max_nr_nodes/4];
+	unsigned char* shared_cursor = shared_mem;
+	auto alloc_shared = [&shared_cursor](const size_t bytes, const size_t alignment) -> unsigned char*
+	{
+		const uintptr_t cur = reinterpret_cast<uintptr_t>(shared_cursor);
+		const size_t misalignment = (alignment == 0 ? 0 : (cur % alignment));
+		if(misalignment > 0)
+			shared_cursor += (alignment - misalignment);
+		unsigned char* out = shared_cursor;
+		shared_cursor += bytes;
+		return out;
+	};
+
+	point_i_t* buffered_knn = reinterpret_cast<point_i_t*>(alloc_shared(2 * static_cast<size_t>(nr_nns_searches) * sizeof(point_i_t), alignof(point_i_t)));
+	T* buffered_dists = reinterpret_cast<T*>(alloc_shared(2 * static_cast<size_t>(nr_nns_searches) * sizeof(T), alignof(T)));
+	const auto nr_nodes = partition_info->nr_partitions;
+	const size_t nr_tag_bytes = static_cast<size_t>(((nr_nodes - 1) / 4) + 1) * sizeof(NodeTag);
+	NodeTag* tags = reinterpret_cast<NodeTag*>(alloc_shared(nr_tag_bytes, alignof(NodeTag)));
+	TreeTraversal<T, dims>* tree = reinterpret_cast<TreeTraversal<T, dims>*>(alloc_shared(sizeof(TreeTraversal<T, dims>), alignof(TreeTraversal<T, dims>)));
+	T* local_dist_buf = reinterpret_cast<T*>(alloc_shared(local_dist_buf_size * sizeof(T), alignof(T)));
+	Vec<T, dims>* point_proj = reinterpret_cast<Vec<T, dims>*>(alloc_shared(sizeof(Vec<T, dims>), alignof(Vec<T, dims>)));
+	T* worst_dist_ = reinterpret_cast<T*>(alloc_shared(sizeof(T), alignof(T)));
+	bool* off_leaf_necessary = reinterpret_cast<bool*>(alloc_shared(sizeof(bool), alignof(bool)));
+
 	PingPongBuffer<T> best_dist_pp[1];
 	PingPongBuffer<point_i_t> best_knn_pp;
-	__shared__ T local_dist_buf[local_dist_buf_size];
-	__shared__ Vec<T, dims> point_proj[1];
-	__shared__ T worst_dist_[1];
-	__shared__ bool off_leaf_necessary[1]; //TODO: Watch out for alignment
+	// TODO: Watch out for alignment
 	
 	//if(tidx == 0)
 	//	local_dist_buf_pointer[0] = new T[local_dist_buf_size]; //TODO: Dynamic
 
-	const auto nr_nodes = partition_info->nr_partitions;
-	assert(max_nr_nodes >= nr_nodes);
-	assert(nr_nns_searches <= max_nr_nns_searches);
+	assert(nr_nodes > 0);
 
 	tree->partition_info = reinterpret_cast<PartitionInfo<T, dims>*>(partition_info);
 	tree->visited_info = tags; //new NodeTag[tree->partition_info->nr_nodes];
@@ -412,16 +470,21 @@ void KDTreeKNNGPUSearch(PartitionInfoDevice<T, dims>* partition_info,
                     const point_i_t nr_query, 
                     const std::array<T, dims>* points_query, T * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches)
 {
-	//TODO: Dynamic implementation
-	/*if(partition_info->nr_partitions > max_partitions || partition_info->nr_leaves > max_leaves)
+	const size_t required = kdtree_computeRequiredSharedMem<T, dims>(nr_nns_searches);
+	const size_t available = kdtree_getAvailableSharedMem();
+	if (required > available)
 	{
-		throw std::runtime_error("Error, please reduce number of levels...");
-	}*/
+		int devId = 0;
+		cudaGetDevice(&devId);
+		std::ostringstream ss;
+		ss << "KDTreeSharedMemValidation: insufficient dynamic shared memory"
+		   << " required_bytes=" << required
+		   << " available_bytes=" << available
+		   << " device_id=" << devId
+		   << " k=" << nr_nns_searches;
+		throw std::runtime_error(ss.str());
+	}
 
-	if(nr_nns_searches > max_nr_nns_searches)
-		throw std::runtime_error("TODO: Maximum number of NNs searches currently restricted");
-
-	//gpuErrchk(cudaMemcpyAsync(partition_info_copy, partition_info, sizeof(PartitionInfoDevice<T, dims>), cudaMemcpyDeviceToDevice));
 	initArray<T><<<dim3(16, 16),dim3(32, 32)>>>(dist, INFINITY, nr_query*nr_nns_searches);
 
 	#ifndef NDEBUG
@@ -432,28 +495,13 @@ void KDTreeKNNGPUSearch(PartitionInfoDevice<T, dims>* partition_info,
 	dim3 grid_dims(32, 32);
 	dim3 block_dims(8, 8);
 
-	/*#ifdef PROFILE_KDTREE
-	cudaEvent_t start, stop;
-	float time;
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
-	cudaEventRecord(start, 0);
-	#endif*/
-
 	const auto points_query_eig = reinterpret_cast<const Vec<T, dims>*>(points_query);
-	KDTreeKernel<T, T_calc, dims><<<grid_dims, block_dims>>>(partition_info, nr_query, points_query_eig, dist, idx, nr_nns_searches);
+	KDTreeKernel<T, T_calc, dims><<<grid_dims, block_dims, required>>>(partition_info, nr_query, points_query_eig, dist, idx, nr_nns_searches);
 
 	#ifndef NDEBUG
 	gpuErrchk( cudaPeekAtLastError() );
 	gpuErrchk( cudaDeviceSynchronize() );
 	#endif
-
-	/*#ifdef PROFILE_KDTREE
-	cudaEventRecord(stop, 0);
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&time, start, stop);
-	printf ("Time for the kernel: %f ms\n", time);
-	#endif*/
 }
 
 #define KDTREE_INSTANTIATION(T, dims) template void compQuadrDistLeafPartition<T, T, dims>(const std::array<T, dims>& point, const PartitionLeaf<T, dims>& partition_leaf, \

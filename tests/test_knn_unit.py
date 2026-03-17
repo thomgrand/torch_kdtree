@@ -15,6 +15,14 @@ from scipy.spatial import KDTree #Reference implementation
 
 np.random.seed(0)
 
+
+@pytest.fixture
+def cuda_or_skip():
+  if not gpu_available:
+    pytest.skip("No GPU")
+  return torch.device("cuda")
+
+
 class TestCPKDTreeImplementation():
 
   #def __init__(self, test_name = None):
@@ -134,3 +142,18 @@ class TestCPKDTreeImplementation():
     #  assert(np.all(inds_ref == inds_knn), "Mismatch in KNN-Indices")
     # else:
     assert np.sum(inds_ref == inds_knn) / inds_ref.size > 0.95, "Too many mismatches in KNN-Indices"
+
+
+@pytest.mark.parametrize("d", [1, 2, 3])
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+def test_gpu_shared_memory_oom_raises(cuda_or_skip, d, dtype):
+  """Verify that requesting k large enough to exhaust GPU dynamic shared memory raises RuntimeError."""
+  device = cuda_or_skip
+  nr_refs = 60001
+  points_ref = torch.randn(size=(nr_refs, d), dtype=dtype, device=device)
+  tree = build_kd_tree(points_ref, device=device)
+  points_query = torch.randn(size=(4, d), dtype=dtype, device=device)
+  # k=50000 needs ~800 KB of shared memory (far above any GPU limit)
+  with pytest.raises(RuntimeError, match="KDTreeSharedMemValidation"):
+    tree.query(points_query, nr_nns_searches=50000)
+

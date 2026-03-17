@@ -1,11 +1,13 @@
 #pragma once
 
+#include <cstdint>
+
 const int max_leaves = 1024;
 const int max_partitions = max_leaves-1;
 const int nr_buffered_query_points = 1024;
 const int nr_buffered_leaf_inds = 256;
 
-#ifndef __CUDACC__
+#ifdef GPU_AVAILABLE
 
 /**
  * @brief Ternary (cond ? a : b) helper to decide at compile time which type will be returned.
@@ -67,6 +69,7 @@ template
 void KDTreeKNNGPUSearch(PartitionInfoDevice<T, dims>* partition_info,
                     const point_i_t nr_query, 
                     const std::array<T, dims>* points_query, T * dist, point_i_t* idx, const point_i_knn_t nr_nns_searches);
+
 #else
 
 void throw_error() { throw std::runtime_error("The library was compiled without GPU support"); }
