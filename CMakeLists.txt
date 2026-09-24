@@ -13,6 +13,8 @@ else()
 endif()
 
 project (torch_kdtree LANGUAGES CXX CUDA)
+
+find_package(CUDAToolkit REQUIRED)
 add_subdirectory(pybind11)
 
 option(BUILD_TEST "Enable building the C++ test"
@@ -114,7 +116,7 @@ if (BUILD_TEST AND BUILD_GPU)
     # add the executable
     add_executable(test_kdtree ${EXEC_SOURCE_LIST}) # ${EXEC_HEADERS_LIST})
     target_link_libraries(test_kdtree 
-                          cudart
+                          CUDA::cudart
                          ${COMMON_LINKS} )
     target_include_directories(test_kdtree PRIVATE ${EIGEN_INSTALL_DIR})
     set_property(TARGET test_kdtree PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCH_LIST})
@@ -139,7 +141,7 @@ if (BUILD_GPU)
     add_definitions(-DGPU_AVAILABLE)
     target_link_libraries(torch_knn
           ${PYTHON_LIBRARIES}
-          cudart
+          CUDA::cudart
           pybind11::module)
 
     #Fix wrong extension being created (at least in Windows)
